@@ -41,6 +41,10 @@
             <span class="hud-label">LEVEL</span>
             <span id="hud-wave" class="hud-value neon-magenta">1</span>
           </div>
+          <div class="hud-pause-btn-panel" id="hud-pause-btn" title="Pause Game">
+            <span class="hud-label">PAUSE</span>
+            <span class="hud-value neon-red">⏸</span>
+          </div>
           <div class="hud-high-panel">
             <span class="hud-label">HI-SCORE</span>
             <span id="hud-high-score" class="hud-value neon-yellow">000000</span>
@@ -219,9 +223,10 @@
       <!-- Pause Game Overlay -->
       <div id="pause-screen" class="overlay-panel text-center hidden pause-bg">
         <h2 class="neon-magenta pulsing-text select-none font-arcade">SIMULATION PAUSED</h2>
-        <p class="blink font-mono">PRESS 'P' TO RESUME PILOTING</p>
-        <div style="margin-top: 2rem;">
-          <button id="btn-pause-abort" class="btn btn-secondary select-none">ABORT MISSION</button>
+        <p class="blink font-mono">PRESS 'P' OR CLICK BELOW TO RESUME PILOTING</p>
+        <div style="margin-top: 2rem; display: flex; gap: 1rem; justify-content: center; width: 100%;">
+          <button id="btn-pause-resume" class="btn btn-primary select-none" style="min-width: 200px; margin: 0;">RESUME SIMULATION</button>
+          <button id="btn-pause-abort" class="btn btn-secondary select-none" style="min-width: 200px; margin: 0;">ABORT MISSION</button>
         </div>
       </div>
 

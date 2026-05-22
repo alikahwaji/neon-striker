@@ -2481,6 +2481,14 @@ window.addEventListener('load', () => {
     document.getElementById('start-menu').classList.remove('hidden');
   });
 
+  document.getElementById('hud-pause-btn').addEventListener('click', () => {
+    togglePause();
+  });
+
+  document.getElementById('btn-pause-resume').addEventListener('click', () => {
+    togglePause();
+  });
+
   document.getElementById('btn-pause-abort').addEventListener('click', () => {
     gameActive = false;
     document.getElementById('pause-screen').classList.add('hidden');
