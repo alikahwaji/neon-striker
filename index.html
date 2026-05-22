@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NEON STRIKER - Retro Synthwave Arcade Shooter</title>
+  <meta name="description" content="An intense, beautifully stylized synthwave space shooter game built with HTML5 canvas and Web Audio synthesized soundscapes.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <!-- Load retro modern and high-tech typography -->
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Press+Start+2P&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Fullscreen CRT Screen Wrapper -->
+  <div class="crt-screen">
+    
+    <!-- Retro Scanning Lines & Vignette Effect -->
+    <div class="scanlines"></div>
+    <div class="crt-glare"></div>
+
+    <!-- Active Game Container -->
+    <div id="game-container" class="game-container">
+      
+      <!-- HTML5 Canvas for the Game Loop -->
+      <canvas id="gameCanvas"></canvas>
+
+      <!-- Heads-Up Display (HUD) Overlay -->
+      <div id="hud" class="hud-overlay hidden">
+        <div class="hud-top">
+          <div class="hud-score-panel">
+            <span class="hud-label">SCORE</span>
+            <span id="hud-score" class="hud-value neon-blue">000000</span>
+          </div>
+          <div class="hud-wave-panel">
+            <span class="hud-label">WAVE</span>
+            <span id="hud-wave" class="hud-value neon-magenta">1</span>
+          </div>
+          <div class="hud-high-panel">
+            <span class="hud-label">HI-SCORE</span>
+            <span id="hud-high-score" class="hud-value neon-yellow">000000</span>
+          </div>
+        </div>
+
+        <div class="hud-bottom">
+          <!-- Cyber Shield / Armor Bar -->
+          <div class="hud-health-container">
+            <span class="hud-label">SHIELD</span>
+            <div class="hud-health-bar-bg">
+              <div id="hud-health-fill" class="hud-health-fill shield-active"></div>
+            </div>
+          </div>
+          <!-- Dynamic Power-ups Display -->
+          <div id="hud-powerups" class="hud-powerups-container">
+            <!-- Active power-ups will inject here -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Main Start Menu Overlay -->
+      <div id="start-menu" class="overlay-panel">
+        <div class="logo-area">
+          <h1 class="game-title select-none">NEON<br><span class="pulsing-text">STRIKER</span></h1>
+          <p class="subtitle select-none">CYBERNETIC DEFENDER // VER 1.0.4</p>
+        </div>
+
+        <div class="menu-actions">
+          <button id="btn-start" class="btn btn-primary select-none">INITIATE GAME</button>
+          <button id="btn-settings" class="btn btn-secondary select-none">SYSTEM PARAMETERS</button>
+          <button id="btn-scores" class="btn btn-secondary select-none">LEADERBOARD</button>
+        </div>
+
+        <div class="how-to-play">
+          <h3>PILOT COMMANDS</h3>
+          <div class="controls-grid">
+            <span class="key">A</span> / <span class="key">D</span> or <span class="key">←</span> / <span class="key">→</span> <span class="action">THRUSTERS (MOVE)</span>
+            <span class="key">SPACEBAR</span> <span class="action">LASER CANNON (SHOOT)</span>
+            <span class="key">P</span> <span class="action">PAUSE SIMULATION</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Settings Menu -->
+      <div id="settings-menu" class="overlay-panel hidden">
+        <h2 class="neon-title text-center select-none">SYSTEM PARAMETERS</h2>
+        
+        <div class="settings-content">
+          <div class="setting-item">
+            <label for="slider-music">SYNTH BGM VOLUME</label>
+            <div class="slider-wrapper">
+              <input type="range" id="slider-music" min="0" max="100" value="50">
+              <span id="music-vol-val" class="slider-val">50%</span>
+            </div>
+          </div>
+
+          <div class="setting-item">
+            <label for="slider-sfx">TACTICAL SFX VOLUME</label>
+            <div class="slider-wrapper">
+              <input type="range" id="slider-sfx" min="0" max="100" value="70">
+              <span id="sfx-vol-val" class="slider-val">70%</span>
+            </div>
+          </div>
+
+          <div class="setting-item">
+            <label for="toggle-shake">SCREEN VIBRATION (SHAKE)</label>
+            <label class="switch">
+              <input type="checkbox" id="toggle-shake" checked>
+              <span class="slider round"></span>
+            </label>
+          </div>
+
+          <div class="setting-item">
+            <label for="toggle-scanlines">CRT SCANLINE STYLING</label>
+            <label class="switch">
+              <input type="checkbox" id="toggle-scanlines" checked>
+              <span class="slider round"></span>
+            </label>
+          </div>
+        </div>
+
+        <button id="btn-settings-back" class="btn btn-secondary select-none">RETURN TO PORT</button>
+      </div>
+
+      <!-- Leaderboard Board Overlay -->
+      <div id="leaderboard-menu" class="overlay-panel hidden">
+        <h2 class="neon-title text-center select-none">PILOT RECORDS</h2>
+        
+        <div class="leaderboard-container">
+          <table class="leaderboard-table">
+            <thead>
+              <tr>
+                <th>RANK</th>
+                <th>PILOT</th>
+                <th class="text-right">SCORE</th>
+              </tr>
+            </thead>
+            <tbody id="leaderboard-body">
+              <!-- Dynamically populated rows -->
+            </tbody>
+          </table>
+        </div>
+
+        <button id="btn-scores-back" class="btn btn-secondary select-none">RETURN TO PORT</button>
+      </div>
+
+      <!-- Pause Game Overlay -->
+      <div id="pause-screen" class="overlay-panel text-center hidden pause-bg">
+        <h2 class="neon-magenta pulsing-text select-none font-arcade">SIMULATION PAUSED</h2>
+        <p class="blink font-mono">PRESS 'P' TO RESUME PILOTING</p>
+        <div style="margin-top: 2rem;">
+          <button id="btn-pause-abort" class="btn btn-secondary select-none">ABORT MISSION</button>
+        </div>
+      </div>
+
+      <!-- Game Over Overlay -->
+      <div id="game-over-screen" class="overlay-panel text-center hidden">
+        <h2 id="game-over-title" class="neon-red pulsing-text select-none">SHIP DESTROYED</h2>
+        
+        <div class="score-display">
+          <div class="score-row">
+            <span class="score-lbl">FINAL SCORE:</span>
+            <span id="final-score" class="score-val neon-blue">000000</span>
+          </div>
+          <div class="score-row">
+            <span class="score-lbl">WAVES RESISTED:</span>
+            <span id="final-wave" class="score-val neon-magenta">1</span>
+          </div>
+        </div>
+
+        <!-- High score prompt -->
+        <div id="high-score-input-container" class="high-score-input-container hidden">
+          <p class="neon-yellow font-arcade">NEW RECORD PILOT ENTRY!</p>
+          <p class="font-mono">ENTER CODENAME (3 CHARS):</p>
+          <div class="name-entry-wrapper">
+            <input type="text" id="pilot-name" maxlength="3" autofocus placeholder="ACE" class="pilot-input">
+            <button id="btn-submit-score" class="btn btn-primary select-none">SAVE RECORD</button>
+          </div>
+        </div>
+
+        <div class="game-over-actions">
+          <button id="btn-restart" class="btn btn-primary select-none">REDEPLOY UNIT</button>
+          <button id="btn-main-menu" class="btn btn-secondary select-none">RETURN TO PORT</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Game Scripts -->
+  <script src="audio.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>
