@@ -59,6 +59,13 @@
               <div id="hud-health-fill" class="hud-health-fill shield-active"></div>
             </div>
           </div>
+          <!-- EMP Shockwave Recharge Bar -->
+          <div id="hud-emp-container" class="hud-emp-container hidden">
+            <span class="hud-label">EMP PULSE</span>
+            <div class="hud-emp-bar-bg">
+              <div id="hud-emp-fill" class="hud-emp-fill emp-ready"></div>
+            </div>
+          </div>
           <!-- Dynamic Power-ups Display -->
           <div id="hud-powerups" class="hud-powerups-container">
             <!-- Active power-ups will inject here -->
@@ -84,6 +91,7 @@
           <div class="controls-grid">
             <span class="key">A</span> / <span class="key">D</span> or <span class="key">←</span> / <span class="key">→</span> <span class="action">THRUSTERS (MOVE)</span>
             <span class="key">SPACEBAR</span> <span class="action">LASER CANNON (SHOOT)</span>
+            <span class="key">E</span> / <span class="key">SHIFT</span> <span class="action">EMP SHOCKWAVE (ACTIVE)</span>
             <span class="key">P</span> <span class="action">PAUSE SIMULATION</span>
           </div>
         </div>
@@ -122,6 +130,14 @@
             <label for="toggle-scanlines">CRT SCANLINE STYLING</label>
             <label class="switch">
               <input type="checkbox" id="toggle-scanlines" checked>
+              <span class="slider round"></span>
+            </label>
+          </div>
+
+          <div class="setting-item">
+            <label for="toggle-bezel">CURVED CRT BEZEL</label>
+            <label class="switch">
+              <input type="checkbox" id="toggle-bezel" checked>
               <span class="slider round"></span>
             </label>
           </div>
@@ -212,6 +228,28 @@
               <span class="shop-lvl" id="lvl-homing">LOCKED</span>
             </div>
             <button id="btn-buy-homing" class="btn-shop">UNLOCK</button>
+          </div>
+
+          <div class="shop-card" id="shop-card-wingman">
+            <div class="shop-icon">🛸</div>
+            <h3>DRONE WINGMAN</h3>
+            <p>Deploys an autonomous companion fighter drone orbiting your ship.</p>
+            <div class="shop-row-status">
+              <span class="shop-price" id="price-wingman">⚙️ 350</span>
+              <span class="shop-lvl" id="lvl-wingman">LOCKED</span>
+            </div>
+            <button id="btn-buy-wingman" class="btn-shop">UNLOCK</button>
+          </div>
+
+          <div class="shop-card" id="shop-card-emp">
+            <div class="shop-icon">🌀</div>
+            <h3>EMP SHOCKWAVE</h3>
+            <p>Press [E] or [SHIFT] to release an expanding ring clearing bullets & stunning hostiles.</p>
+            <div class="shop-row-status">
+              <span class="shop-price" id="price-emp">⚙️ 400</span>
+              <span class="shop-lvl" id="lvl-emp">LOCKED</span>
+            </div>
+            <button id="btn-buy-emp" class="btn-shop">UNLOCK</button>
           </div>
         </div>
 

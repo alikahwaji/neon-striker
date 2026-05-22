@@ -891,3 +891,89 @@ input[type=range]::-webkit-slider-thumb:hover {
 .hud-pause-btn-panel:active {
   transform: translateY(1px);
 }
+
+/* ----------------------------------------------------
+   Elite Arcade Expansion Styling
+   ---------------------------------------------------- */
+
+/* CRT Curved Bezel Styling */
+.game-container.crt-bezel-active {
+  border-radius: 40px !important;
+  border: 24px solid #1a1a24 !important;
+  box-shadow: 
+    0 0 0 2px #333344, 
+    0 20px 50px rgba(0, 0, 0, 0.9), 
+    inset 0 0 40px rgba(0, 0, 0, 0.8),
+    inset 0 0 100px rgba(139, 0, 255, 0.2) !important;
+}
+
+.game-container.crt-bezel-active #gameCanvas {
+  border-radius: 20px !important;
+}
+
+/* Hit Flash & Aberration Animations */
+.game-container.hit-flash {
+  animation: hit-flash-shake 0.4s ease-out;
+}
+
+@keyframes hit-flash-shake {
+  0% { filter: hue-rotate(45deg) contrast(2) brightness(1.5); }
+  25% { filter: hue-rotate(-30deg) contrast(1.8) brightness(1.2); }
+  50% { filter: hue-rotate(20deg) contrast(1.4) brightness(1.1); }
+  75% { filter: hue-rotate(-10deg) contrast(1.2); }
+  100% { filter: none; }
+}
+
+.game-container.glitch-warp {
+  animation: glitch-warp-anim 0.25s infinite;
+}
+
+@keyframes glitch-warp-anim {
+  0% { transform: translate(2px, 1px) skewX(2deg); filter: hue-rotate(90deg) saturate(2); }
+  20% { transform: translate(-1px, -2px) skewX(-3deg); filter: contrast(1.5); }
+  40% { transform: translate(-3px, 0px) skewX(5deg); }
+  60% { transform: translate(1px, 2px) skewX(-1deg); }
+  80% { transform: translate(-1px, -1px) skewX(2deg); }
+  100% { transform: translate(2px, 1px) skewX(0deg); }
+}
+
+/* EMP Shockwave HUD styling */
+.hud-emp-container {
+  display: flex;
+  flex-direction: column;
+  width: 140px;
+  background: rgba(4, 2, 10, 0.65);
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(4px);
+  margin-left: 1rem;
+}
+
+.hud-emp-bar-bg {
+  width: 100%;
+  height: 12px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.hud-emp-fill {
+  height: 100%;
+  width: 0%; /* Fills from 0% to 100% */
+  background: #bd00ff;
+  box-shadow: 0 0 10px rgba(189, 0, 255, 0.7);
+  transition: width 0.1s linear, background 0.3s ease, box-shadow 0.3s ease;
+}
+
+.hud-emp-fill.emp-ready {
+  background: var(--neon-blue);
+  box-shadow: var(--glow-blue);
+  animation: emp-glow-pulse 1.5s infinite alternate;
+}
+
+@keyframes emp-glow-pulse {
+  0% { opacity: 0.8; box-shadow: 0 0 5px var(--neon-blue); }
+  100% { opacity: 1; box-shadow: 0 0 15px var(--neon-blue); }
+}

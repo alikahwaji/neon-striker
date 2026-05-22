@@ -74,6 +74,51 @@ class SynthAudioEngine {
       [233.08, 293.66, 349.23, 466.16], // B minor
       [196.00, 246.94, 293.66, 392.00]  // G
     ];
+
+    // 6. TRON GRID - TRON (E Minor high-energy cyber synth)
+    this.bassTron = [82.41, 98.00, 73.42, 82.41]; // E2, G2, D2, E2
+    this.arpTron = [
+      [164.81, 196.00, 246.94, 329.63], // Em
+      [196.00, 246.94, 293.66, 392.00], // G
+      [146.83, 174.61, 220.00, 293.66], // D
+      [164.81, 220.00, 246.94, 329.63]  // Em9
+    ];
+
+    // 7. MATRIX - THE MATRIX (A Minor mechanical cyber beat)
+    this.bassMatrix = [55.00, 58.27, 55.00, 61.74]; // A1, A#1, A1, B1
+    this.arpMatrix = [
+      [110.00, 130.81, 164.81, 220.00], // Am
+      [116.54, 146.83, 174.61, 233.08], // A#m
+      [110.00, 130.81, 164.81, 220.00], // Am
+      [123.47, 155.56, 185.00, 246.94]  // Bm
+    ];
+
+    // 8. WEYLAND SENTRY - ALIENS (F# Minor military metal industrial)
+    this.bassSentry = [92.50, 77.78, 82.41, 69.30]; // F#2, D#2, E2, C#2
+    this.arpSentry = [
+      [185.00, 220.00, 277.18, 369.99], // F#m
+      [155.56, 196.00, 233.08, 311.13], 
+      [164.81, 196.00, 246.94, 329.63],
+      [138.59, 164.81, 207.65, 277.18]
+    ];
+
+    // 9. DEATH STAR CORE - STAR WARS CORE (G Minor dramatic orchestral)
+    this.bassDsCore = [49.00, 39.00, 43.65, 49.00]; // G1, D#1, E1, G1
+    this.arpDsCore = [
+      [98.00, 116.54, 146.83, 196.00], // Gm
+      [77.78, 98.00,  116.54, 155.56], // Eb
+      [87.31, 110.00, 130.81, 174.61], // F
+      [98.00, 116.54, 146.83, 196.00]  // Gm
+    ];
+
+    // 10. UNICRON MEGA BOSS - TRANSFORMERS (Distorted heavy metal arpeggiator)
+    this.bassUnicron = [55.00, 48.99, 41.20, 55.00]; // A1, G1, E1, A1
+    this.arpUnicron = [
+      [110.00, 138.59, 164.81, 220.00], // A Triad
+      [97.99,  123.47, 146.83, 195.99], // G Major
+      [82.41,  103.83, 123.47, 164.81], // E Major
+      [110.00, 138.59, 164.81, 220.00]  // A
+    ];
   }
 
   // Initialize context on user interaction
@@ -137,6 +182,11 @@ class SynthAudioEngine {
     else if (themeName === 'organic') this.bgmTempo = 92;
     else if (themeName === 'gargantua') this.bgmTempo = 72; // Majestic, slow Church Organ pace
     else if (themeName === 'spice') this.bgmTempo = 100;
+    else if (themeName === 'tron') this.bgmTempo = 138;
+    else if (themeName === 'matrix') this.bgmTempo = 108;
+    else if (themeName === 'wey_sentry') this.bgmTempo = 115;
+    else if (themeName === 'ds_core') this.bgmTempo = 88;
+    else if (themeName === 'unicron') this.bgmTempo = 148;
     
     // Restart BGM seamlessly if currently playing
     if (this.bgmInterval) {
@@ -424,6 +474,46 @@ class SynthAudioEngine {
         arpeggiatorType = 'triangle';
         bassVolume = 0.12;
         arpVolume = 0.06;
+        break;
+      case 'tron': // TRON Grid
+        bassNotes = this.bassTron;
+        arpNotes = this.arpTron;
+        synthType = 'triangle';
+        arpeggiatorType = 'sawtooth';
+        bassVolume = 0.13;
+        arpVolume = 0.06;
+        break;
+      case 'matrix': // Matrix rain
+        bassNotes = this.bassMatrix;
+        arpNotes = this.arpMatrix;
+        synthType = 'sawtooth';
+        arpeggiatorType = 'sine';
+        bassVolume = 0.14;
+        arpVolume = 0.04;
+        break;
+      case 'wey_sentry': // Aliens Colony
+        bassNotes = this.bassSentry;
+        arpNotes = this.arpSentry;
+        synthType = 'sawtooth';
+        arpeggiatorType = 'triangle';
+        bassVolume = 0.15;
+        arpVolume = 0.05;
+        break;
+      case 'ds_core': // Death Star
+        bassNotes = this.bassDsCore;
+        arpNotes = this.arpDsCore;
+        synthType = 'triangle';
+        arpeggiatorType = 'sine';
+        bassVolume = 0.16;
+        arpVolume = 0.06;
+        break;
+      case 'unicron': // Final Boss
+        bassNotes = this.bassUnicron;
+        arpNotes = this.arpUnicron;
+        synthType = 'sawtooth';
+        arpeggiatorType = 'sawtooth';
+        bassVolume = 0.18;
+        arpVolume = 0.07;
         break;
       default: // Standard
         bassNotes = this.bassStandard;

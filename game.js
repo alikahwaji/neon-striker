@@ -42,14 +42,18 @@ const playerUpgrades = {
   speed: 1,      // Max level 5
   shield: 1,     // Max level 5
   cooldown: 1,   // Max level 5
-  homing: 0      // 0 = Locked, 1 = Unlocked
+  homing: 0,     // 0 = Locked, 1 = Unlocked
+  wingman: 0,    // 0 = Locked, 1 = Unlocked
+  emp: 0         // 0 = Locked, 1 = Unlocked
 };
 
 const upgradeCosts = {
   speed: [100, 150, 220, 300, 400],
   shield: [150, 220, 300, 400, 500],
   cooldown: [200, 280, 380, 500, 650],
-  homing: 300
+  homing: 300,
+  wingman: 350,
+  emp: 400
 };
 
 // Active weapon powerups
@@ -71,6 +75,16 @@ let scrapItems = [];
 let asteroids = [];
 let homingMissiles = [];
 let wallTurrets = [];
+let wingmanDrones = [];
+let empShockwaves = [];
+let debrisList = [];
+let empCooldownTimer = 0;
+let bulletTimeActive = false;
+let matrixStreams = [];
+let isWarping = false;
+let warpTimer = 0;
+let dsLaserState = 'off';
+let dsLaserTimer = 4000;
 
 // Scrolling background state
 let gridOffset = 0;
@@ -191,6 +205,42 @@ const LEVEL_DATABASE = {
     quote: "'The Spice must flow!' Shimmering sand orbit. Collect gold spice clouds for weapon overcharge. Sandworm cruiser incoming.",
     spiceClouds: true,
     bossType: "sandworm"
+  },
+  16: {
+    title: "LEVEL 16",
+    subtitle: "THE TRON GRID",
+    theme: "tron",
+    quote: "Grid override active. Avoid light cycle trails. Program deletion imminent.",
+    enemyGrid: { rows: 3, cols: 5, scouts: true, swarmers: false, kamikazes: false, lightCycles: true }
+  },
+  17: {
+    title: "LEVEL 17",
+    subtitle: "MATRIX CODE RAIN",
+    theme: "matrix",
+    quote: "Wake up, Neo... Time dilation active. Hold [SHIFT] or [E] to manipulate bullet-time streams.",
+    enemyGrid: { rows: 3, cols: 6, scouts: true, swarmers: true, kamikazes: true, shieldBlockers: true, snipers: true }
+  },
+  18: {
+    title: "LEVEL 18",
+    subtitle: "COLONY SECURITY SENTRY",
+    theme: "wey_sentry",
+    quote: "Weyland perimeter perimeter alert. Sentry searchlights scanning quadrants. Evade or destroy lock-on cones.",
+    enemyGrid: { rows: 2, cols: 4, scouts: true, swarmers: false, kamikazes: false, sentries: true, snipers: true }
+  },
+  19: {
+    title: "LEVEL 19",
+    subtitle: "DEATH STAR SUPERLASER",
+    theme: "ds_core",
+    quote: "Reactor stabilizer barriers online. Superlaser charge sequence active. Evade bisecting beams.",
+    dsCoreLaser: true,
+    enemyGrid: { rows: 2, cols: 5, scouts: true, swarmers: true, kamikazes: false, shieldBlockers: true }
+  },
+  20: {
+    title: "LEVEL 20",
+    subtitle: "UNICRON WORLD DEVOURER",
+    theme: "unicron",
+    quote: "⚠️ DECISIVE BOSS BATTLE ⚠️\nPlanetary devouring singularity core warping in. Destroy Unicron's structural engine.",
+    bossType: "unicron"
   }
 };
 
@@ -449,16 +499,53 @@ class PlayerShip {
     if (now - this.lastShotTime >= cooldown) {
       this.lastShotTime = now;
       
-      const beamColor = activePowerUps['TRIPLE_SHOT'] ? '#ffea00' : '#00f0ff';
       GameAudio.playLaserSound(activePowerUps['RAPID_FIRE'] ? 1.3 : 1.0);
 
+      const tier = playerUpgrades.cooldown;
       if (activePowerUps['TRIPLE_SHOT']) {
-        playerLasers.push(new Laser(this.x + this.width / 2, this.y, 0, -CONFIG.laserSpeed, beamColor));
-        playerLasers.push(new Laser(this.x + 5, this.y + 10, -2.5, -CONFIG.laserSpeed + 1, beamColor));
-        playerLasers.push(new Laser(this.x + this.width - 5, this.y + 10, 2.5, -CONFIG.laserSpeed + 1, beamColor));
+        if (tier === 1) {
+          playerLasers.push(new Laser(this.x + this.width / 2, this.y, 0, -CONFIG.laserSpeed, '#ffea00', 1, 4, 16));
+          playerLasers.push(new Laser(this.x + 5, this.y + 10, -2.5, -CONFIG.laserSpeed + 1, '#ffea00', 1, 4, 16));
+          playerLasers.push(new Laser(this.x + this.width - 5, this.y + 10, 2.5, -CONFIG.laserSpeed + 1, '#ffea00', 1, 4, 16));
+        } else if (tier === 2) {
+          playerLasers.push(new Laser(this.x + this.width / 2, this.y, 0, -CONFIG.laserSpeed, '#0088ff', 1.3, 6, 18));
+          playerLasers.push(new Laser(this.x + 5, this.y + 10, -2.5, -CONFIG.laserSpeed + 1, '#0088ff', 1.3, 6, 18));
+          playerLasers.push(new Laser(this.x + this.width - 5, this.y + 10, 2.5, -CONFIG.laserSpeed + 1, '#0088ff', 1.3, 6, 18));
+        } else if (tier === 3) {
+          playerLasers.push(new Laser(this.x + this.width / 2, this.y, 0, -CONFIG.laserSpeed, '#00ff88', 1.2, 4, 16));
+          playerLasers.push(new Laser(this.x + 5, this.y + 5, -2, -CONFIG.laserSpeed, '#00ff88', 1.2, 4, 16));
+          playerLasers.push(new Laser(this.x + this.width - 5, this.y + 5, 2, -CONFIG.laserSpeed, '#00ff88', 1.2, 4, 16));
+          playerLasers.push(new Laser(this.x + 5, this.y + 10, -4, -CONFIG.laserSpeed + 1, '#00ff88', 1.2, 4, 16));
+          playerLasers.push(new Laser(this.x + this.width - 5, this.y + 10, 4, -CONFIG.laserSpeed + 1, '#00ff88', 1.2, 4, 16));
+        } else if (tier === 4) {
+          playerLasers.push(new Laser(this.x + this.width / 2 - 12, this.y, 0, -CONFIG.laserSpeed, '#ff003c', 1.4, 4, 16));
+          playerLasers.push(new Laser(this.x + this.width / 2 + 12, this.y, 0, -CONFIG.laserSpeed, '#ff003c', 1.4, 4, 16));
+          playerLasers.push(new Laser(this.x + 5, this.y + 10, -2.5, -CONFIG.laserSpeed + 1, '#ff003c', 1.4, 4, 16));
+          playerLasers.push(new Laser(this.x + this.width - 5, this.y + 10, 2.5, -CONFIG.laserSpeed + 1, '#ff003c', 1.4, 4, 16));
+        } else {
+          playerLasers.push(new Laser(this.x + this.width / 2, this.y, 0, -CONFIG.laserSpeed, '#bd00ff', 4.0, 28, 32, true));
+          playerLasers.push(new Laser(this.x + 5, this.y + 10, -1.5, -CONFIG.laserSpeed, '#bd00ff', 4.0, 28, 32, true));
+          playerLasers.push(new Laser(this.x + this.width - 5, this.y + 10, 1.5, -CONFIG.laserSpeed, '#bd00ff', 4.0, 28, 32, true));
+        }
       } else {
-        playerLasers.push(new Laser(this.x + 12, this.y, 0, -CONFIG.laserSpeed, beamColor));
-        playerLasers.push(new Laser(this.x + this.width - 12, this.y, 0, -CONFIG.laserSpeed, beamColor));
+        if (tier === 1) {
+          playerLasers.push(new Laser(this.x + 12, this.y, 0, -CONFIG.laserSpeed, '#00f0ff', 1, 4, 16));
+          playerLasers.push(new Laser(this.x + this.width - 12, this.y, 0, -CONFIG.laserSpeed, '#00f0ff', 1, 4, 16));
+        } else if (tier === 2) {
+          playerLasers.push(new Laser(this.x + 10, this.y, 0, -CONFIG.laserSpeed, '#0088ff', 1.3, 6, 18));
+          playerLasers.push(new Laser(this.x + this.width - 10, this.y, 0, -CONFIG.laserSpeed, '#0088ff', 1.3, 6, 18));
+        } else if (tier === 3) {
+          playerLasers.push(new Laser(this.x + this.width / 2, this.y, 0, -CONFIG.laserSpeed, '#00ff88', 1.2, 4, 16));
+          playerLasers.push(new Laser(this.x + 5, this.y + 5, -1.8, -CONFIG.laserSpeed, '#00ff88', 1.2, 4, 16));
+          playerLasers.push(new Laser(this.x + this.width - 5, this.y + 5, 1.8, -CONFIG.laserSpeed, '#00ff88', 1.2, 4, 16));
+        } else if (tier === 4) {
+          playerLasers.push(new Laser(this.x + 4, this.y, 0, -CONFIG.laserSpeed, '#ff003c', 1.4, 4, 16));
+          playerLasers.push(new Laser(this.x + 12, this.y, 0, -CONFIG.laserSpeed, '#ff003c', 1.4, 4, 16));
+          playerLasers.push(new Laser(this.x + this.width - 12, this.y, 0, -CONFIG.laserSpeed, '#ff003c', 1.4, 4, 16));
+          playerLasers.push(new Laser(this.x + this.width - 4, this.y, 0, -CONFIG.laserSpeed, '#ff003c', 1.4, 4, 16));
+        } else {
+          playerLasers.push(new Laser(this.x + this.width / 2, this.y - 8, 0, -CONFIG.laserSpeed, '#bd00ff', 4.0, 28, 32, true));
+        }
       }
     }
   }
@@ -578,19 +665,25 @@ class HomingMissile {
 
 // Laser class
 class Laser {
-  constructor(x, y, vx, vy, color = '#00f0ff') {
+  constructor(x, y, vx, vy, color = '#00f0ff', damage = 1, width = 4, height = 16, piercing = false) {
     this.x = x;
     this.y = y;
     this.vx = vx;
     this.vy = vy;
     this.color = color;
-    this.width = 4;
-    this.height = 16;
+    this.damage = damage;
+    this.width = width;
+    this.height = height;
+    this.piercing = piercing;
   }
 
-  update() {
-    this.x += this.vx;
-    this.y += this.vy;
+  update(isPlayerLaser = false) {
+    let mult = 1.0;
+    if (bulletTimeActive && !isPlayerLaser) {
+      mult = 0.4;
+    }
+    this.x += this.vx * mult;
+    this.y += this.vy * mult;
   }
 
   draw() {
@@ -712,6 +805,7 @@ class Enemy {
     this.type = type; // 'scout', 'swarmer', 'kamikaze', 'phase', 'heatSeeker', 'boss', 'boss2', 'sandworm'
     this.offset = offset;
     this.shootTimer = Math.random() * 2000;
+    this.stunTimer = 0;
     
     this.maxHealth = 1;
     this.scoreValue = 100;
@@ -784,12 +878,61 @@ class Enemy {
       this.height = 90;
       this.speed = 2.4;
       this.serpentinePhase = 0;
+    } else if (type === 'shieldBlocker') {
+      this.maxHealth = 4;
+      this.scoreValue = 400;
+      this.color = '#00f0ff';
+      this.width = 34;
+      this.height = 28;
+      this.speed = 1.0;
+    } else if (type === 'sniper') {
+      this.maxHealth = 2;
+      this.scoreValue = 500;
+      this.color = '#ff003c';
+      this.width = 32;
+      this.height = 26;
+      this.speed = 0.7;
+      this.chargeTimer = 0;
+    } else if (type === 'lightCycle') {
+      this.maxHealth = 2;
+      this.scoreValue = 300;
+      this.color = '#00f0ff';
+      this.width = 32;
+      this.height = 24;
+      this.speed = 1.8;
+      this.directionX = (Math.random() < 0.5 ? -1 : 1);
+      this.trail = [];
+      this.trailTimer = 0;
+    } else if (type === 'sentry') {
+      this.maxHealth = 3;
+      this.scoreValue = 400;
+      this.color = '#ffea00';
+      this.width = 36;
+      this.height = 20;
+      this.speed = 0;
+      this.angle = Math.PI / 2;
+      this.sweepDirection = 1;
+      this.shootCooldown = 0;
+    } else if (type === 'unicron') {
+      this.maxHealth = 300;
+      this.scoreValue = 30000;
+      this.color = '#ffea00';
+      this.width = 220;
+      this.height = 140;
+      this.speed = 0.8;
+      this.bossDirection = 1;
+      this.phase2 = false;
     }
 
     this.health = this.maxHealth;
   }
 
   update(dt) {
+    if (this.stunTimer > 0) {
+      this.stunTimer -= dt;
+      return;
+    }
+
     this.phase += 0.035;
 
     // Movement Behavior AI based on type
@@ -840,10 +983,90 @@ class Enemy {
       
       // Dune sandworm shield flashes periodically
       this.shieldActive = Math.sin(this.serpentinePhase * 4) > 0.4;
+    } 
+    else if (this.type === 'shieldBlocker') {
+      this.y += this.speed * 0.7;
+    } 
+    else if (this.type === 'sniper') {
+      if (this.y < 120) {
+        this.y += this.speed * 1.2;
+      }
+      if (player) {
+        const targetDx = player.x + player.width / 2 - (this.x + this.width / 2);
+        this.x += Math.sign(targetDx) * 0.9;
+      }
+      let mult = bulletTimeActive ? 0.4 : 1.0;
+      this.chargeTimer += dt * mult;
+      if (this.chargeTimer >= 1800) {
+        this.shoot();
+        this.chargeTimer = 0;
+      }
+    } 
+    else if (this.type === 'lightCycle') {
+      let mult = bulletTimeActive ? 0.4 : 1.0;
+      this.y += this.speed * 0.5 * mult;
+      this.x += this.speed * this.directionX * 1.5 * mult;
+      if (this.x < 15) {
+        this.x = 15;
+        this.directionX = 1;
+      }
+      if (this.x > CONFIG.width - this.width - 15) {
+        this.x = CONFIG.width - this.width - 15;
+        this.directionX = -1;
+      }
+    } 
+    else if (this.type === 'sentry') {
+      let mult = bulletTimeActive ? 0.4 : 1.0;
+      const sweepSpeed = 0.008 * mult;
+      this.angle += sweepSpeed * this.sweepDirection;
+      if (this.angle > (Math.PI * 3) / 4) {
+        this.angle = (Math.PI * 3) / 4;
+        this.sweepDirection = -1;
+      }
+      if (this.angle < Math.PI / 4) {
+        this.angle = Math.PI / 4;
+        this.sweepDirection = 1;
+      }
+    } 
+    else if (this.type === 'unicron') {
+      let mult = bulletTimeActive ? 0.4 : 1.0;
+      this.x += this.speed * this.bossDirection * mult;
+      if (this.x < 40) {
+        this.x = 40;
+        this.bossDirection = 1;
+      }
+      if (this.x > CONFIG.width - this.width - 40) {
+        this.x = CONFIG.width - this.width - 40;
+        this.bossDirection = -1;
+      }
+      this.y = 80 + Math.sin(this.phase * 0.5) * 8;
+      
+      if (this.health <= this.maxHealth / 2) {
+        this.phase2 = true;
+        this.color = '#ff003c';
+        this.speed = 1.3;
+      }
+      
+      if (this.phase2 && player && gameActive && !gamePaused) {
+        const mx = this.x + this.width / 2;
+        const my = this.y + this.height * 0.7;
+        const px = player.x + player.width / 2;
+        const py = player.y + player.height / 2;
+        const dx = mx - px;
+        const dy = my - py;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > 20) {
+          const pullStrength = 0.08 * mult;
+          player.vx += (dx / dist) * pullStrength;
+          if (player.y > 280) {
+            player.y += (dy / dist) * pullStrength * 1.5;
+          }
+        }
+      }
     }
 
     // Firing checks
-    if (gameActive && this.type !== 'kamikaze') {
+    if (gameActive && this.type !== 'kamikaze' && this.type !== 'sniper' && this.type !== 'sentry') {
       this.shootTimer -= dt;
       if (this.shootTimer <= 0) {
         this.shoot();
@@ -898,6 +1121,57 @@ class Enemy {
         targetDx = Math.sign(dx) * 1.5;
       }
       enemyLasers.push(new Laser(this.x + this.width / 2, this.y + this.height, targetDx, 5, '#ff00aa'));
+    }
+    else if (this.type === 'sniper') {
+      GameAudio.playLaserSound(0.5); // deep charge shot
+      const sx = this.x + this.width / 2;
+      const sy = this.y + this.height - 4;
+      enemyLasers.push(new Laser(sx, sy, 0, 11, '#ff003c', 2, 8, 22));
+      for (let i = 0; i < 8; i++) {
+        const spark = new Particle(sx, sy, '#ff003c');
+        spark.vy = Math.random() * -3 - 1;
+        particles.push(spark);
+      }
+    }
+    else if (this.type === 'unicron') {
+      GameAudio.playBossLaserSound();
+      const centerX = this.x + this.width / 2;
+      const bottomY = this.y + this.height - 15;
+      
+      if (!this.phase2) {
+        const bulletCount = 7;
+        const speed = 6.5;
+        const spreadAngle = Math.PI / 1.5;
+        for (let i = 0; i < bulletCount; i++) {
+          const angle = Math.PI / 2 - spreadAngle / 2 + (i / (bulletCount - 1)) * spreadAngle;
+          const vx = Math.cos(angle) * speed;
+          const vy = Math.sin(angle) * speed;
+          enemyLasers.push(new Laser(centerX, bottomY, vx, vy, '#ffea00'));
+        }
+        
+        if (player) {
+          const dx = player.x + player.width/2 - centerX;
+          const dy = player.y + player.height/2 - bottomY;
+          const dist = Math.sqrt(dx*dx + dy*dy);
+          if (dist > 0) {
+            enemyLasers.push(new Laser(centerX, bottomY, (dx / dist) * 5.5, (dy / dist) * 5.5, '#8b00ff'));
+          }
+        }
+      } else {
+        const bulletCount = 9;
+        const speed = 7.5;
+        const spreadAngle = Math.PI / 1.2;
+        for (let i = 0; i < bulletCount; i++) {
+          const angle = Math.PI / 2 - spreadAngle / 2 + (i / (bulletCount - 1)) * spreadAngle;
+          const vx = Math.cos(angle) * speed;
+          const vy = Math.sin(angle) * speed;
+          enemyLasers.push(new Laser(centerX, bottomY, vx, vy, '#ff003c'));
+        }
+        
+        if (asteroids.length < 12) {
+          asteroids.push(new Asteroid(centerX + (Math.random() * 40 - 20), bottomY + 20, 'medium', Math.random() * 2.4 - 1.2, 3));
+        }
+      }
     }
     else {
       // Standard small lasers
@@ -985,6 +1259,215 @@ class Enemy {
         ctx.stroke();
       }
     } 
+    else if (this.type === 'shieldBlocker') {
+      ctx.beginPath();
+      ctx.moveTo(this.x + this.width / 2, this.y + this.height);
+      ctx.lineTo(this.x + this.width, this.y + 4);
+      ctx.lineTo(this.x + this.width - 6, this.y);
+      ctx.lineTo(this.x + 6, this.y);
+      ctx.lineTo(this.x, this.y + 4);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      
+      ctx.save();
+      ctx.strokeStyle = '#00f0ff';
+      ctx.shadowColor = '#00f0ff';
+      ctx.shadowBlur = 12;
+      ctx.lineWidth = 3.5;
+      ctx.beginPath();
+      ctx.arc(this.x + this.width / 2, this.y + this.height + 6, this.width / 2 + 4, Math.PI * 0.15, Math.PI * 0.85);
+      ctx.stroke();
+      ctx.restore();
+    }
+    else if (this.type === 'sniper') {
+      ctx.beginPath();
+      ctx.moveTo(this.x + this.width / 2, this.y + this.height);
+      ctx.lineTo(this.x + this.width, this.y);
+      ctx.lineTo(this.x, this.y);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      
+      ctx.fillStyle = this.color;
+      ctx.fillRect(this.x + this.width / 2 - 3, this.y + this.height, 6, 6);
+      
+      if (player && gameActive && !gamePaused) {
+        ctx.save();
+        const px = player.x + player.width / 2;
+        const py = player.y + player.height / 2;
+        const sx = this.x + this.width / 2;
+        const sy = this.y + this.height;
+        
+        const progress = this.chargeTimer / 1800;
+        ctx.strokeStyle = `rgba(255, ${Math.floor(255 * progress)}, ${Math.floor(60 * progress)}, ${0.15 + progress * 0.65})`;
+        ctx.shadowColor = '#ff003c';
+        ctx.shadowBlur = progress * 10;
+        ctx.lineWidth = 1 + progress * 2.5;
+        ctx.setLineDash([8, 6]);
+        ctx.beginPath();
+        ctx.moveTo(sx, sy);
+        ctx.lineTo(px, py);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+    else if (this.type === 'lightCycle') {
+      if (this.trail && this.trail.length > 1) {
+        ctx.save();
+        ctx.strokeStyle = '#00f0ff';
+        ctx.shadowColor = '#00f0ff';
+        ctx.shadowBlur = 12;
+        ctx.lineWidth = 3.5;
+        ctx.beginPath();
+        ctx.moveTo(this.trail[0].x, this.trail[0].y);
+        for (let t = 1; t < this.trail.length; t++) {
+          ctx.lineTo(this.trail[t].x, this.trail[t].y);
+        }
+        ctx.lineTo(this.x + this.width / 2, this.y + this.height / 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      ctx.beginPath();
+      ctx.arc(this.x + 8, this.y + this.height / 2, 6, 0, Math.PI * 2);
+      ctx.arc(this.x + this.width - 8, this.y + this.height / 2, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      
+      ctx.beginPath();
+      ctx.moveTo(this.x + 6, this.y + 6);
+      ctx.lineTo(this.x + this.width - 6, this.y + 6);
+      ctx.lineTo(this.x + this.width - 2, this.y + this.height - 6);
+      ctx.lineTo(this.x + 2, this.y + this.height - 6);
+      ctx.closePath();
+      ctx.stroke();
+    }
+    else if (this.type === 'sentry') {
+      const sx = this.x + this.width / 2;
+      const sy = this.y + this.height / 2;
+      
+      ctx.fillStyle = '#1c1a27';
+      ctx.fillRect(this.x, this.y, this.width, 6);
+      ctx.strokeRect(this.x, this.y, this.width, 6);
+      
+      ctx.beginPath();
+      ctx.moveTo(sx - 4, this.y + 6);
+      ctx.lineTo(sx - 4, sy);
+      ctx.lineTo(sx + 4, sy);
+      ctx.lineTo(sx + 4, this.y + 6);
+      ctx.stroke();
+      
+      ctx.save();
+      ctx.translate(sx, sy);
+      ctx.rotate(this.angle);
+      
+      const coneLength = 320;
+      const coneHalfSpread = Math.PI / 12;
+      
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(Math.cos(coneHalfSpread) * coneLength, Math.sin(coneHalfSpread) * coneLength);
+      ctx.lineTo(Math.cos(-coneHalfSpread) * coneLength, Math.sin(-coneHalfSpread) * coneLength);
+      ctx.closePath();
+      
+      const isLocked = this.detected;
+      let coneGrad = ctx.createRadialGradient(0, 0, 10, 0, 0, coneLength);
+      if (isLocked) {
+        coneGrad.addColorStop(0, 'rgba(255, 0, 60, 0.45)');
+        coneGrad.addColorStop(1, 'rgba(255, 0, 60, 0.0)');
+        ctx.fillStyle = coneGrad;
+      } else {
+        coneGrad.addColorStop(0, 'rgba(255, 234, 0, 0.22)');
+        coneGrad.addColorStop(1, 'rgba(255, 234, 0, 0.0)');
+        ctx.fillStyle = coneGrad;
+      }
+      ctx.fill();
+      
+      ctx.restore();
+      
+      ctx.save();
+      ctx.translate(sx, sy);
+      ctx.rotate(this.angle);
+      ctx.strokeStyle = this.color;
+      ctx.fillStyle = '#0f0c1b';
+      ctx.beginPath();
+      ctx.arc(0, 0, 10, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillRect(0, -2, 14, 4);
+      ctx.strokeRect(0, -2, 14, 4);
+      ctx.restore();
+    }
+    else if (this.type === 'unicron') {
+      const cx = this.x + this.width / 2;
+      const cy = this.y + this.height * 0.4;
+      const radius = 62;
+      
+      ctx.lineWidth = 3.5;
+      ctx.beginPath();
+      ctx.moveTo(cx - 30, cy - radius + 15);
+      ctx.quadraticCurveTo(cx - 85, cy - radius - 20, cx - 110, cy - radius + 25);
+      ctx.quadraticCurveTo(cx - 80, cy - radius + 10, cx - radius + 4, cy - 20);
+      
+      ctx.moveTo(cx + 30, cy - radius + 15);
+      ctx.quadraticCurveTo(cx + 85, cy - radius - 20, cx + 110, cy - radius + 25);
+      ctx.quadraticCurveTo(cx + 80, cy - radius + 10, cx + radius - 4, cy - 20);
+      ctx.stroke();
+      
+      ctx.fillStyle = '#100b1d';
+      ctx.lineWidth = 3.0;
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      
+      ctx.save();
+      ctx.strokeStyle = this.phase2 ? '#ff003c' : '#ff7a00';
+      ctx.shadowColor = this.phase2 ? '#ff003c' : '#ff7a00';
+      ctx.shadowBlur = 8;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(cx - 20, cy - radius + 5);
+      ctx.lineTo(cx - 20, cy + radius - 25);
+      ctx.moveTo(cx + 20, cy - radius + 5);
+      ctx.lineTo(cx + 20, cy + radius - 25);
+      ctx.moveTo(cx - radius + 10, cy - 15);
+      ctx.lineTo(cx + radius - 10, cy - 15);
+      ctx.moveTo(cx - radius + 10, cy + 15);
+      ctx.lineTo(cx + radius - 10, cy + 15);
+      ctx.stroke();
+      ctx.restore();
+      
+      const mawRadius = this.phase2 ? 24 + Math.sin(this.phase * 5) * 5 : 14 + Math.sin(this.phase * 2) * 2;
+      ctx.save();
+      ctx.fillStyle = this.phase2 ? '#ff003c' : '#ff7a00';
+      ctx.shadowColor = this.phase2 ? '#ff003c' : '#ff7a00';
+      ctx.shadowBlur = 15;
+      ctx.beginPath();
+      ctx.arc(cx, cy + 25, mawRadius, 0, Math.PI * 2);
+      ctx.fill();
+      
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(cx, cy + 25, mawRadius, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+      
+      if (this.phase2) {
+        ctx.save();
+        ctx.strokeStyle = 'rgba(255, 0, 60, 0.7)';
+        ctx.shadowColor = '#ff003c';
+        ctx.shadowBlur = 20;
+        ctx.lineWidth = 2.0;
+        const voidRing = (Date.now() / 15) % 110;
+        ctx.beginPath();
+        ctx.arc(cx, cy + 25, voidRing, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
     else {
       // Standard small alien shapes
       ctx.beginPath();
@@ -998,7 +1481,7 @@ class Enemy {
     }
 
     // Health bar above for Bosses
-    if (this.type === 'boss' || this.type === 'boss2' || this.type === 'sandworm') {
+    if (this.type === 'boss' || this.type === 'boss2' || this.type === 'sandworm' || this.type === 'unicron') {
       const barW = this.width;
       const barH = 6;
       const fillW = barW * (this.health / this.maxHealth);
@@ -1373,6 +1856,227 @@ class Particle {
   }
 }
 
+// Vector Debris polygonal shard explosion particle
+class Debris {
+  constructor(x, y, color) {
+    this.x = x;
+    this.y = y;
+    this.color = color;
+    
+    const angle = Math.random() * Math.PI * 2;
+    const speed = Math.random() * 3.2 + 1.2;
+    this.vx = Math.cos(angle) * speed;
+    this.vy = Math.sin(angle) * speed;
+    
+    this.points = [];
+    const sides = Math.floor(Math.random() * 3) + 3; // 3 to 5 sides
+    const size = Math.random() * 8 + 4;
+    for (let i = 0; i < sides; i++) {
+      const a = (i / sides) * Math.PI * 2 + (Math.random() * 0.4 - 0.2);
+      this.points.push({
+        x: Math.cos(a) * size,
+        y: Math.sin(a) * size
+      });
+    }
+    
+    this.rotation = Math.random() * Math.PI * 2;
+    this.rotSpeed = (Math.random() - 0.5) * 0.15;
+    this.alpha = 1.0;
+    this.decay = Math.random() * 0.012 + 0.01;
+  }
+
+  update(dt) {
+    let mult = 1.0;
+    if (bulletTimeActive) mult = 0.4;
+    
+    this.x += this.vx * mult;
+    this.y += this.vy * mult;
+    this.rotation += this.rotSpeed * mult;
+    this.alpha -= this.decay * mult;
+  }
+
+  draw() {
+    if (this.alpha <= 0) return;
+    ctx.save();
+    ctx.globalAlpha = this.alpha;
+    ctx.strokeStyle = this.color;
+    ctx.shadowColor = this.color;
+    ctx.shadowBlur = 8;
+    ctx.lineWidth = 1.5;
+    
+    ctx.translate(this.x, this.y);
+    ctx.rotate(this.rotation);
+    
+    ctx.beginPath();
+    ctx.moveTo(this.points[0].x, this.points[0].y);
+    for (let i = 1; i < this.points.length; i++) {
+      ctx.lineTo(this.points[i].x, this.points[i].y);
+    }
+    ctx.closePath();
+    ctx.stroke();
+    
+    ctx.restore();
+  }
+}
+
+// Orbiting escort fighter drone wingman
+class WingmanDrone {
+  constructor(angleOffset = 0) {
+    this.angle = angleOffset;
+    this.width = 14;
+    this.height = 14;
+    this.color = '#bd00ff';
+    this.lastFireTime = 0;
+    this.x = 0;
+    this.y = 0;
+  }
+
+  update(dt) {
+    if (!player) return;
+    
+    let rotationSpeed = 0.04;
+    if (bulletTimeActive) rotationSpeed *= 0.4;
+    this.angle += rotationSpeed;
+    
+    const px = player.x + player.width / 2;
+    const py = player.y + player.height / 2;
+    this.x = px + Math.cos(this.angle) * 45 - this.width / 2;
+    this.y = py + Math.sin(this.angle) * 45 - this.height / 2;
+    
+    const now = Date.now();
+    if (now - this.lastFireTime > 450) {
+      this.fire();
+      this.lastFireTime = now;
+    }
+  }
+
+  fire() {
+    if (!gameActive || gamePaused) return;
+    playerLasers.push(new Laser(
+      this.x + this.width / 2 - 2, 
+      this.y - 4, 
+      0, 
+      -9, 
+      '#bd00ff',
+      1.1,
+      4,
+      16,
+      false
+    ));
+    GameAudio.playLaserSound(1.4);
+  }
+
+  draw() {
+    ctx.save();
+    ctx.strokeStyle = this.color;
+    ctx.fillStyle = '#110121';
+    ctx.shadowBlur = 8;
+    ctx.shadowColor = this.color;
+    ctx.lineWidth = 1.5;
+    
+    ctx.beginPath();
+    ctx.moveTo(this.x + this.width / 2, this.y);
+    ctx.lineTo(this.x + this.width, this.y + this.height);
+    ctx.lineTo(this.x, this.y + this.height);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(this.x + this.width / 2, this.y + this.height * 0.65, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+    
+    ctx.restore();
+  }
+}
+
+// Expanding high-voltage tactical electromagnetic pulse shockwave ring
+class EMPShockwave {
+  constructor(x, y) {
+    this.x = x;
+    this.y = y;
+    this.radius = 10;
+    this.maxRadius = 350;
+    this.speed = 12;
+    this.damage = 2;
+    this.hitEnemies = new Set();
+    
+    GameAudio.playBombSound();
+    traumaLevel = Math.min(1.0, traumaLevel + 0.4);
+    
+    // Trigger CSS glitch effect on game container for game juice!
+    const container = document.getElementById('game-container');
+    container.classList.add('hit-flash');
+    setTimeout(() => container.classList.remove('hit-flash'), 400);
+  }
+
+  update(dt) {
+    let mult = 1.0;
+    if (bulletTimeActive) mult = 0.4;
+    
+    this.radius += this.speed * mult;
+    
+    // Clear active hostile energy bolts inside expanding ring
+    for (let i = enemyLasers.length - 1; i >= 0; i--) {
+      const laser = enemyLasers[i];
+      const dx = laser.x - this.x;
+      const dy = laser.y - this.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist <= this.radius) {
+        for (let j = 0; j < 3; j++) {
+          particles.push(new Particle(laser.x, laser.y, laser.color || '#ff00aa'));
+        }
+        enemyLasers.splice(i, 1);
+      }
+    }
+    
+    // Stunning and damaging close enemies
+    for (let e = enemies.length - 1; e >= 0; e--) {
+      const enemy = enemies[e];
+      if (this.hitEnemies.has(enemy)) continue;
+      
+      const ex = enemy.x + enemy.width / 2;
+      const ey = enemy.y + enemy.height / 2;
+      const dx = ex - this.x;
+      const dy = ey - this.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      
+      if (dist <= this.radius) {
+        this.hitEnemies.add(enemy);
+        const destroyed = enemy.takeDamage(this.damage);
+        
+        for (let j = 0; j < 6; j++) {
+          const spark = new Particle(ex + (Math.random() * 20 - 10), ey + (Math.random() * 20 - 10), '#00f0ff');
+          spark.vy -= 1;
+          particles.push(spark);
+        }
+        
+        if (destroyed) {
+          destroyEnemy(enemy, e);
+        } else {
+          enemy.stunTimer = 1800; // 1.8 seconds stun
+        }
+      }
+    }
+  }
+
+  draw() {
+    ctx.save();
+    ctx.strokeStyle = '#00f0ff';
+    ctx.shadowBlur = 18;
+    ctx.shadowColor = '#00f0ff';
+    ctx.lineWidth = 4 * (1.0 - this.radius / this.maxRadius) + 1;
+    ctx.globalAlpha = 1.0 - this.radius / this.maxRadius;
+    
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+    ctx.stroke();
+    
+    ctx.restore();
+  }
+}
+
 // Floating Damage Numbers
 class FloatingText {
   constructor(x, y, text, color = '#00f0ff') {
@@ -1422,6 +2126,14 @@ function drawSynthwaveBackground() {
     ctx.fillStyle = '#0d0801'; // Gold Sand Orbit backdrop
   } else if (lvlData.theme === 'organic') {
     ctx.fillStyle = '#010603'; // Alien dark green nest backdrop
+  } else if (lvlData.theme === 'matrix') {
+    ctx.fillStyle = '#000802'; // Dark Matrix green backdrop
+  } else if (lvlData.theme === 'tron') {
+    ctx.fillStyle = '#02000c'; // TRON dark neon purple/blue backdrop
+  } else if (lvlData.theme === 'ds_core') {
+    ctx.fillStyle = '#0a0a0f'; // Grey reactor backdrop
+  } else if (lvlData.theme === 'unicron') {
+    ctx.fillStyle = '#0f0502'; // Orange circuit board backdrop
   } else {
     ctx.fillStyle = '#03010b';
   }
@@ -1429,7 +2141,10 @@ function drawSynthwaveBackground() {
 
   // Render drifting stars
   stars.forEach(star => {
-    star.y += star.speed;
+    let currentSpeed = star.speed;
+    if (isWarping) currentSpeed *= 15;
+    
+    star.y += currentSpeed;
     if (star.y > CONFIG.height) {
       star.y = 0;
       star.x = Math.random() * CONFIG.width;
@@ -1440,8 +2155,61 @@ function drawSynthwaveBackground() {
     } else {
       ctx.fillStyle = star.color;
     }
-    ctx.fillRect(star.x, star.y, star.size, star.size);
+    
+    if (isWarping) {
+      let starLength = star.speed * 12;
+      ctx.fillRect(star.x, star.y, star.size, starLength);
+    } else {
+      ctx.fillRect(star.x, star.y, star.size, star.size);
+    }
   });
+
+  // Matrix digital code rain in background
+  if (lvlData.theme === 'matrix') {
+    if (matrixStreams.length === 0) {
+      const cols = Math.floor(CONFIG.width / 16);
+      for (let i = 0; i < cols; i++) {
+        matrixStreams.push({
+          x: i * 16,
+          y: Math.random() * -CONFIG.height,
+          speed: Math.random() * 3 + 2,
+          length: Math.floor(Math.random() * 15) + 10
+        });
+      }
+    }
+    
+    ctx.save();
+    ctx.font = '14px monospace';
+    matrixStreams.forEach(stream => {
+      let speedMult = bulletTimeActive ? 0.4 : 1.0;
+      stream.y += stream.speed * speedMult;
+      if (stream.y - stream.length * 16 > CONFIG.height) {
+        stream.y = Math.random() * -200;
+        stream.speed = Math.random() * 3 + 2;
+        stream.length = Math.floor(Math.random() * 15) + 10;
+      }
+      
+      for (let j = 0; j < stream.length; j++) {
+        const cy = stream.y - j * 16;
+        if (cy < 0 || cy > CONFIG.height) continue;
+        
+        const charCode = 0x30A0 + Math.floor(Math.random() * 96);
+        const char = String.fromCharCode(charCode);
+        
+        const isLeading = j === 0;
+        if (isLeading) {
+          ctx.fillStyle = '#ffffff';
+          ctx.shadowColor = '#00ff41';
+          ctx.shadowBlur = 10;
+        } else {
+          ctx.fillStyle = `rgba(0, 255, 65, ${1.0 - j / stream.length})`;
+          ctx.shadowBlur = 0;
+        }
+        ctx.fillText(char, stream.x, cy);
+      }
+    });
+    ctx.restore();
+  }
 
   const horizonY = 220;
 
@@ -1500,6 +2268,21 @@ function drawSynthwaveBackground() {
   } else if (lvlData.theme === 'organic') {
     gridLineCol1 = 'rgba(57, 255, 20, 0.15)';
     gridLineCol2 = 'rgba(0, 240, 255, ';
+  } else if (lvlData.theme === 'tron') {
+    gridLineCol1 = 'rgba(0, 240, 255, 0.35)'; // Bright cyan
+    gridLineCol2 = 'rgba(0, 240, 255, ';
+  } else if (lvlData.theme === 'matrix') {
+    gridLineCol1 = 'rgba(0, 255, 65, 0.08)'; // Dim green
+    gridLineCol2 = 'rgba(0, 255, 65, ';
+  } else if (lvlData.theme === 'wey_sentry') {
+    gridLineCol1 = 'rgba(100, 100, 120, 0.15)';
+    gridLineCol2 = 'rgba(100, 100, 120, ';
+  } else if (lvlData.theme === 'ds_core') {
+    gridLineCol1 = 'rgba(57, 255, 20, 0.2)'; // Green power conduits
+    gridLineCol2 = 'rgba(57, 255, 20, ';
+  } else if (lvlData.theme === 'unicron') {
+    gridLineCol1 = 'rgba(255, 68, 0, 0.22)'; // Orange circuit board
+    gridLineCol2 = 'rgba(255, 68, 0, ';
   }
 
   // Radial grid sky gradient glow
@@ -1700,6 +2483,20 @@ function updateHangarUI() {
   document.getElementById('lvl-homing').innerText = unlocked ? 'UNLOCKED' : 'LOCKED';
   document.getElementById('price-homing').innerText = unlocked ? 'MAXED' : `⚙️ ${homingCost}`;
   document.getElementById('btn-buy-homing').disabled = unlocked || scrapCredits < homingCost;
+
+  // Update Wingman stats
+  const wingmanCost = upgradeCosts.wingman;
+  const wingmanUnlocked = playerUpgrades.wingman > 0;
+  document.getElementById('lvl-wingman').innerText = wingmanUnlocked ? 'UNLOCKED' : 'LOCKED';
+  document.getElementById('price-wingman').innerText = wingmanUnlocked ? 'MAXED' : `⚙️ ${wingmanCost}`;
+  document.getElementById('btn-buy-wingman').disabled = wingmanUnlocked || scrapCredits < wingmanCost;
+
+  // Update EMP stats
+  const empCost = upgradeCosts.emp;
+  const empUnlocked = playerUpgrades.emp > 0;
+  document.getElementById('lvl-emp').innerText = empUnlocked ? 'UNLOCKED' : 'LOCKED';
+  document.getElementById('price-emp').innerText = empUnlocked ? 'MAXED' : `⚙️ ${empCost}`;
+  document.getElementById('btn-buy-emp').disabled = empUnlocked || scrapCredits < empCost;
 }
 
 function exitHangarAndLaunch() {
@@ -1708,7 +2505,7 @@ function exitHangarAndLaunch() {
   
   // Sector Level advance!
   currentLevel++;
-  if (currentLevel > 15) {
+  if (currentLevel > 20) {
     // Campaign victory loop reset harder
     currentLevel = 1;
   }
@@ -1740,6 +2537,12 @@ function loadAndStartLevel() {
   asteroids = [];
   homingMissiles = [];
   wallTurrets = [];
+  wingmanDrones = [];
+  empShockwaves = [];
+  debrisList = [];
+  matrixStreams = [];
+  dsLaserState = 'off';
+  dsLaserTimer = 4000;
 
   // Reset player position
   if (player) {
@@ -1816,15 +2619,40 @@ function triggerScreenShake(intensity) {
    GAME CORE UPDATE LOOP
    ---------------------------------------------------- */
 function updateGame(dt) {
+  const lvlData = LEVEL_DATABASE[currentLevel] || {};
+
+  // Bullet-Time active checks in Level 17 Matrix theme:
+  if (lvlData.theme === 'matrix' && gameActive && !gamePaused) {
+    bulletTimeActive = keys['ShiftLeft'] || keys['ShiftRight'] || keys['KeyE'] || keys['KeyQ'];
+  } else {
+    bulletTimeActive = false;
+  }
+
   // trauma decay
   if (traumaLevel > 0) {
     traumaLevel -= 0.04;
     if (traumaLevel < 0) traumaLevel = 0;
   }
 
+  // Warp drive scrolling timer update
+  if (isWarping) {
+    let mult = bulletTimeActive ? 0.4 : 1.0;
+    warpTimer -= dt * mult;
+    if (warpTimer <= 0) {
+      isWarping = false;
+    }
+  }
+
   // Update Player
   if (player) {
     player.update(dt);
+
+    // Active EMP Shockwave trigger
+    if (playerUpgrades.emp > 0 && gameActive && !gamePaused) {
+      if ((keys['KeyE'] || keys['ShiftLeft'] || keys['ShiftRight']) && empCooldownTimer <= 0) {
+        triggerPlayerEMP();
+      }
+    }
   }
 
   // Update HUD HUD values
@@ -1845,6 +2673,36 @@ function updateGame(dt) {
     fill.className = 'hud-health-fill warning';
   } else {
     fill.className = 'hud-health-fill critical';
+  }
+
+  // Update EMP cooldown and HUD elements
+  if (playerUpgrades.emp > 0) {
+    const empContainer = document.getElementById('hud-emp-container');
+    if (empContainer) {
+      empContainer.classList.remove('hidden');
+    }
+    
+    if (empCooldownTimer > 0) {
+      let mult = bulletTimeActive ? 0.4 : 1.0;
+      empCooldownTimer -= dt * mult;
+      if (empCooldownTimer < 0) empCooldownTimer = 0;
+    }
+    
+    const empFill = document.getElementById('hud-emp-fill');
+    if (empFill) {
+      const fillPct = empCooldownTimer > 0 ? (1.0 - empCooldownTimer / 8000) * 100 : 100;
+      empFill.style.width = `${fillPct}%`;
+      if (empCooldownTimer <= 0) {
+        empFill.classList.add('emp-ready');
+      } else {
+        empFill.classList.remove('emp-ready');
+      }
+    }
+  } else {
+    const empContainer = document.getElementById('hud-emp-container');
+    if (empContainer) {
+      empContainer.classList.add('hidden');
+    }
   }
 
   // Update active powerups
@@ -1875,13 +2733,13 @@ function updateGame(dt) {
   // Update Projectiles
   for (let i = playerLasers.length - 1; i >= 0; i--) {
     const laser = playerLasers[i];
-    laser.update();
+    laser.update(true); // Player lasers are NOT slowed down by bullet-time
     if (laser.isOutOfBounds()) playerLasers.splice(i, 1);
   }
 
   for (let i = enemyLasers.length - 1; i >= 0; i--) {
     const laser = enemyLasers[i];
-    laser.update();
+    laser.update(false); // Enemy lasers ARE slowed down by bullet-time
     if (laser.isOutOfBounds()) enemyLasers.splice(i, 1);
   }
 
@@ -1922,9 +2780,146 @@ function updateGame(dt) {
     }
   }
 
+  // Update Escort Wingman Drones if active
+  if (player && playerUpgrades.wingman > 0) {
+    if (wingmanDrones.length === 0) {
+      wingmanDrones.push(new WingmanDrone(0));
+      wingmanDrones.push(new WingmanDrone(Math.PI)); // Double escorts!
+    }
+    wingmanDrones.forEach(drone => drone.update(dt));
+  } else {
+    wingmanDrones = [];
+  }
+
+  // Update EMP Shockwaves
+  for (let i = empShockwaves.length - 1; i >= 0; i--) {
+    const emp = empShockwaves[i];
+    emp.update(dt);
+    if (emp.radius >= emp.maxRadius) {
+      empShockwaves.splice(i, 1);
+    }
+  }
+
+  // Update Vector Debris
+  for (let i = debrisList.length - 1; i >= 0; i--) {
+    const debris = debrisList[i];
+    debris.update(dt);
+    if (debris.alpha <= 0) {
+      debrisList.splice(i, 1);
+    }
+  }
+
+  // Death Star Superlaser Core updates (Level 19)
+  if (lvlData.dsCoreLaser && gameActive && !gamePaused) {
+    let mult = bulletTimeActive ? 0.4 : 1.0;
+    dsLaserTimer -= dt * mult;
+    if (dsLaserTimer <= 0) {
+      if (dsLaserState === 'off') {
+        dsLaserState = 'charging';
+        dsLaserTimer = 2200; // charge for 2.2 seconds
+        GameAudio.playLaserSound(0.5); // heavy charging hum sound
+      } else if (dsLaserState === 'charging') {
+        dsLaserState = 'firing';
+        dsLaserTimer = 1600; // fire for 1.6 seconds
+        GameAudio.playBombSound(); // massive laser blast
+        triggerScreenShake(0.8);
+      } else if (dsLaserState === 'firing') {
+        dsLaserState = 'off';
+        dsLaserTimer = Math.random() * 5000 + 4000; // cool down, fire again in 4 to 9 seconds
+      }
+    }
+
+    // If firing, check collision with player ship!
+    if (dsLaserState === 'firing' && player) {
+      const centerX = CONFIG.width / 2;
+      const laserW = 90; // massive 90px wide laser!
+      if (player.x + player.width > centerX - laserW / 2 && player.x < centerX + laserW / 2) {
+        damagePlayer(1.5); // continuous heavy damage
+        triggerScreenShake(0.15);
+      }
+    }
+  }
+
   // Update Enemies
   for (let i = enemies.length - 1; i >= 0; i--) {
     const enemy = enemies[i];
+    
+    // Custom logic for Light Cycles
+    if (enemy.type === 'lightCycle') {
+      let mult = bulletTimeActive ? 0.4 : 1.0;
+      
+      // Update light cycle trail
+      if (!enemy.trailTimer) enemy.trailTimer = 0;
+      enemy.trailTimer += dt * mult;
+      if (enemy.trailTimer >= 100) {
+        if (!enemy.trail) enemy.trail = [];
+        enemy.trail.push({
+          x: enemy.x + enemy.width / 2,
+          y: enemy.y + enemy.height / 2,
+          birth: Date.now()
+        });
+        enemy.trailTimer = 0;
+      }
+      
+      // Filter out segments older than 4 seconds
+      const now = Date.now();
+      if (enemy.trail) {
+        enemy.trail = enemy.trail.filter(pt => now - pt.birth < 4000);
+      }
+      
+      // Collide trail with player ship
+      if (player && enemy.trail) {
+        const px = player.x + player.width / 2;
+        const py = player.y + player.height / 2;
+        for (let t = 0; t < enemy.trail.length - 1; t++) {
+          const p1 = enemy.trail[t];
+          const p2 = enemy.trail[t + 1];
+          if (getDistanceToSegment(px, py, p1.x, p1.y, p2.x, p2.y) < 18) {
+            damagePlayer(0.35); // continuous trail damage
+            triggerScreenShake(0.06);
+            if (Math.random() < 0.1) {
+              particles.push(new Particle(px, py, '#00ffff'));
+            }
+          }
+        }
+      }
+    }
+    
+    // Custom logic for Ceiling Sentries
+    if (enemy.type === 'sentry') {
+      let mult = bulletTimeActive ? 0.4 : 1.0;
+      
+      if (player && gameActive && !gamePaused) {
+        const sx = enemy.x + enemy.width / 2;
+        const sy = enemy.y + enemy.height / 2;
+        const px = player.x + player.width / 2;
+        const py = player.y + player.height / 2;
+        const dx = px - sx;
+        const dy = py - sy;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const angleToPlayer = Math.atan2(dy, dx);
+        
+        let diff = angleToPlayer - enemy.angle;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        
+        if (dist < 450 && Math.abs(diff) < Math.PI / 12) {
+          enemy.detected = true;
+          if (!enemy.shootCooldown) enemy.shootCooldown = 0;
+          enemy.shootCooldown -= dt * mult;
+          if (enemy.shootCooldown <= 0) {
+            const vx = Math.cos(angleToPlayer) * 7.5;
+            const vy = Math.sin(angleToPlayer) * 7.5;
+            enemyLasers.push(new Laser(sx, sy, vx, vy, '#ffea00'));
+            enemy.shootCooldown = 180; // fire every 180ms
+            GameAudio.playLaserSound(1.8);
+          }
+        } else {
+          enemy.detected = false;
+        }
+      }
+    }
+
     enemy.update(dt);
     
     if (enemy.y > CONFIG.height + 40) {
@@ -1968,6 +2963,61 @@ function updateGame(dt) {
 /* ----------------------------------------------------
    COLLISIONS HANDLING ALGORITHMS
    ---------------------------------------------------- */
+function getDistanceToSegment(px, py, x1, y1, x2, y2) {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  if (dx === 0 && dy === 0) {
+    return Math.sqrt((px - x1) ** 2 + (py - y1) ** 2);
+  }
+  const t = ((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy);
+  const clampedT = Math.max(0, Math.min(1, t));
+  const closestX = x1 + clampedT * dx;
+  const closestY = y1 + clampedT * dy;
+  return Math.sqrt((px - closestX) ** 2 + (py - closestY) ** 2);
+}
+
+function spawnDebris(x, y, color) {
+  const count = Math.floor(Math.random() * 5) + 6; // 6 to 10 shards
+  for (let i = 0; i < count; i++) {
+    debrisList.push(new Debris(x, y, color));
+  }
+}
+
+function triggerPlayerEMP() {
+  if (!player) return;
+  empShockwaves.push(new EMPShockwave(player.x + player.width / 2, player.y + player.height / 2));
+  empCooldownTimer = 8000; // 8 seconds cooldown
+}
+
+function destroyEnemy(enemy, eIndex) {
+  enemies.splice(eIndex, 1);
+  score += enemy.scoreValue;
+  GameAudio.playExplosionSound(enemy.type.startsWith('boss') || enemy.type === 'unicron' ? 2.2 : 0.85);
+  triggerScreenShake(enemy.type.startsWith('boss') || enemy.type === 'unicron' ? 0.9 : 0.25);
+  
+  spawnExplosionParticles(enemy.x + enemy.width/2, enemy.y + enemy.height/2, enemy.color, enemy.type.startsWith('boss') || enemy.type === 'unicron' ? 60 : 15);
+  spawnDebris(enemy.x + enemy.width/2, enemy.y + enemy.height/2, enemy.color);
+
+  // Egg Hatch facehugger drones! (Level 12 Alien)
+  if (enemy instanceof HatchingPod) {
+    spawnFacehuggerDrones(enemy.x + enemy.width/2, enemy.y + enemy.height/2);
+  } 
+  else {
+    // Drop Nanotech scrap credits drops
+    const dropCount = enemy.type.startsWith('boss') || enemy.type === 'unicron' ? 12 : enemy.type === 'swarmer' ? 3 : 1;
+    for (let d = 0; d < dropCount; d++) {
+      scrapItems.push(new ScrapCredit(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2));
+    }
+
+    // Powerups drops chance
+    if (Math.random() < 0.12) {
+      const types = ['TRIPLE_SHOT', 'SHIELD', 'RAPID_FIRE', 'BOMB'];
+      const randType = types[Math.floor(Math.random() * types.length)];
+      powerUps.push(new PowerUp(enemy.x + enemy.width/2, enemy.y + enemy.height/2, randType));
+    }
+  }
+}
+
 function handleCollisions() {
   if (!player) return;
 
@@ -1984,40 +3034,41 @@ function handleCollisions() {
           laser.y + laser.height > enemy.y &&
           laser.y - laser.height < enemy.y + enemy.height) {
         
-        playerLasers.splice(l, 1);
-        hitSomething = true;
+        // Frontal deflection check for blockers
+        if (enemy.type === 'shieldBlocker' && laser.vy < 0) {
+          if (laser.piercing) {
+            if (!laser.hitEnemies) laser.hitEnemies = new Set();
+            if (!laser.hitEnemies.has(enemy)) {
+              laser.hitEnemies.add(enemy);
+              floatingTexts.push(new FloatingText(laser.x, laser.y - 10, "DEFLECTED", '#00f0ff'));
+              GameAudio.playHitSound();
+            }
+            continue;
+          } else {
+            playerLasers.splice(l, 1);
+            hitSomething = true;
+            floatingTexts.push(new FloatingText(laser.x, laser.y - 10, "DEFLECTED", '#00f0ff'));
+            GameAudio.playHitSound();
+            break;
+          }
+        }
+
+        if (laser.piercing) {
+          if (!laser.hitEnemies) laser.hitEnemies = new Set();
+          if (laser.hitEnemies.has(enemy)) continue;
+          laser.hitEnemies.add(enemy);
+        } else {
+          playerLasers.splice(l, 1);
+          hitSomething = true;
+        }
         
-        const destroyed = enemy.takeDamage(1);
+        const destroyed = enemy.takeDamage(laser.damage || 1);
         spawnSparkParticles(laser.x, laser.y, enemy.color);
 
         if (destroyed) {
-          enemies.splice(e, 1);
-          score += enemy.scoreValue;
-          GameAudio.playExplosionSound(enemy.type.startsWith('boss') ? 2.2 : 0.85);
-          triggerScreenShake(enemy.type.startsWith('boss') ? 0.9 : 0.25);
-          
-          spawnExplosionParticles(enemy.x + enemy.width/2, enemy.y + enemy.height/2, enemy.color, enemy.type.startsWith('boss') ? 60 : 15);
-
-          // Egg Hatch facehugger drones! (Level 12 Alien)
-          if (enemy instanceof HatchingPod) {
-            spawnFacehuggerDrones(enemy.x + enemy.width/2, enemy.y + enemy.height/2);
-          } 
-          else {
-            // Drop Nanotech scrap credits drops
-            const dropCount = enemy.type.startsWith('boss') ? 12 : enemy.type === 'swarmer' ? 3 : 1;
-            for (let d = 0; d < dropCount; d++) {
-              scrapItems.push(new ScrapCredit(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2));
-            }
-
-            // Powerups drops chance
-            if (Math.random() < 0.12) {
-              const types = ['TRIPLE_SHOT', 'SHIELD', 'RAPID_FIRE', 'BOMB'];
-              const randType = types[Math.floor(Math.random() * types.length)];
-              powerUps.push(new PowerUp(enemy.x + enemy.width/2, enemy.y + enemy.height/2, randType));
-            }
-          }
+          destroyEnemy(enemy, e);
         }
-        break;
+        if (!laser.piercing) break;
       }
     }
 
@@ -2029,9 +3080,15 @@ function handleCollisions() {
       const dist = Math.sqrt(Math.pow(laser.x - ast.x, 2) + Math.pow(laser.y - ast.y, 2));
       
       if (dist < ast.radius + laser.width) {
-        playerLasers.splice(l, 1);
+        if (laser.piercing) {
+          if (!laser.hitAsteroids) laser.hitAsteroids = new Set();
+          if (laser.hitAsteroids.has(ast)) continue;
+          laser.hitAsteroids.add(ast);
+        } else {
+          playerLasers.splice(l, 1);
+        }
         
-        const destroyed = ast.takeDamage(1);
+        const destroyed = ast.takeDamage(laser.damage || 1);
         spawnSparkParticles(laser.x, laser.y, ast.color);
 
         if (destroyed) {
@@ -2041,6 +3098,7 @@ function handleCollisions() {
           triggerScreenShake(ast.size === 'large' ? 0.5 : 0.25);
           
           spawnExplosionParticles(ast.x, ast.y, ast.color, ast.size === 'large' ? 25 : 12);
+          spawnDebris(ast.x, ast.y, ast.color);
           
           // Split asteroid physics
           if (ast.size === 'large') {
@@ -2054,7 +3112,7 @@ function handleCollisions() {
             scrapItems.push(new ScrapCredit(ast.x, ast.y));
           }
         }
-        break;
+        if (!laser.piercing) break;
       }
     }
   }
@@ -2077,18 +3135,7 @@ function handleCollisions() {
         spawnExplosionParticles(missile.x, missile.y, '#ffea00', 8);
 
         if (destroyed) {
-          enemies.splice(e, 1);
-          score += enemy.scoreValue;
-          GameAudio.playExplosionSound(enemy.type.startsWith('boss') ? 2.2 : 0.85);
-          triggerScreenShake(enemy.type.startsWith('boss') ? 0.9 : 0.25);
-          spawnExplosionParticles(enemy.x + enemy.width/2, enemy.y + enemy.height/2, enemy.color, enemy.type.startsWith('boss') ? 60 : 15);
-          
-          if (enemy instanceof HatchingPod) {
-            spawnFacehuggerDrones(enemy.x + enemy.width/2, enemy.y + enemy.height/2);
-          } else {
-            scrapItems.push(new ScrapCredit(enemy.x + enemy.width/2, enemy.y + enemy.height/2));
-            scrapItems.push(new ScrapCredit(enemy.x + enemy.width/2, enemy.y + enemy.height/2));
-          }
+          destroyEnemy(enemy, e);
         }
         break;
       }
@@ -2113,6 +3160,7 @@ function handleCollisions() {
           GameAudio.playExplosionSound(ast.size === 'large' ? 1.4 : 0.8);
           triggerScreenShake(ast.size === 'large' ? 0.5 : 0.25);
           spawnExplosionParticles(ast.x, ast.y, ast.color, ast.size === 'large' ? 25 : 12);
+          spawnDebris(ast.x, ast.y, ast.color);
           
           if (ast.size === 'large') {
             asteroids.push(new Asteroid(ast.x - 15, ast.y, 'medium', -1.2, ast.vy + 0.3));
@@ -2222,7 +3270,7 @@ function handleCollisions() {
     // Asteroid vs Enemies physical crash (highly tactical and exciting!)
     for (let e = enemies.length - 1; e >= 0; e--) {
       const enemy = enemies[e];
-      if (enemy.type.startsWith('boss') || enemy.type === 'sandworm') continue;
+      if (enemy.type.startsWith('boss') || enemy.type === 'sandworm' || enemy.type === 'unicron') continue;
 
       const distEnemy = Math.sqrt(Math.pow(enemy.x + enemy.width/2 - ast.x, 2) + Math.pow(enemy.y + enemy.height/2 - ast.y, 2));
       if (distEnemy < ast.radius + enemy.width/2) {
@@ -2347,8 +3395,71 @@ function drawGame() {
   // Draw scrolling backgrounds
   drawSynthwaveBackground();
 
+  const lvlData = LEVEL_DATABASE[currentLevel] || {};
+
+  // Draw Death Star Reactor Beam (Level 19)
+  if (lvlData.dsCoreLaser && (dsLaserState === 'charging' || dsLaserState === 'firing')) {
+    ctx.save();
+    const centerX = CONFIG.width / 2; // screen-bisecting massive vertical beam
+    
+    if (dsLaserState === 'charging') {
+      // Pulsing warning thin targeting lines
+      ctx.strokeStyle = '#39ff14';
+      ctx.lineWidth = 1.5 + Math.sin(Date.now() / 30) * 1.0;
+      ctx.shadowBlur = 10;
+      ctx.shadowColor = '#39ff14';
+      ctx.globalAlpha = 0.4 + Math.sin(Date.now() / 50) * 0.3;
+      
+      // Draw 2 thin charging bounds lines
+      ctx.beginPath();
+      ctx.moveTo(centerX - 45, 0);
+      ctx.lineTo(centerX - 45, CONFIG.height);
+      ctx.moveTo(centerX + 45, 0);
+      ctx.lineTo(centerX + 45, CONFIG.height);
+      ctx.stroke();
+      
+      // Pulsing energy spark particles charging inside the column
+      ctx.fillStyle = '#39ff14';
+      for (let i = 0; i < 4; i++) {
+        const ry = Math.random() * CONFIG.height;
+        const rx = centerX + (Math.random() * 90 - 45);
+        ctx.beginPath();
+        ctx.arc(rx, ry, Math.random() * 3 + 1, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else if (dsLaserState === 'firing') {
+      // A massive screen-bisecting white-hot green reactor beam
+      ctx.fillStyle = '#39ff14';
+      ctx.shadowBlur = 30;
+      ctx.shadowColor = '#39ff14';
+      
+      ctx.fillRect(centerX - 45, 0, 90, CONFIG.height);
+      
+      // White-hot core
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(centerX - 20, 0, 40, CONFIG.height);
+      
+      // Spark particles along the column during the firing state
+      ctx.fillStyle = '#39ff14';
+      for (let i = 0; i < 8; i++) {
+        const ry = Math.random() * CONFIG.height;
+        const rx = centerX + (Math.random() * 130 - 65);
+        ctx.beginPath();
+        ctx.arc(rx, ry, Math.random() * 4 + 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+
   // Draw Wall Turrets (Trench Level)
   wallTurrets.forEach(turret => turret.draw());
+
+  // Draw Vector Debris under ships/lasers for clean layering
+  debrisList.forEach(debris => debris.draw());
+
+  // Draw EMP Shockwaves
+  empShockwaves.forEach(emp => emp.draw());
 
   // Draw Enemy lasers
   enemyLasers.forEach(laser => laser.draw());
@@ -2364,6 +3475,9 @@ function drawGame() {
 
   // Draw Nanotech credits drops
   scrapItems.forEach(scrap => scrap.draw());
+
+  // Draw Wingman Drones next to player ship
+  wingmanDrones.forEach(drone => drone.draw());
 
   // Draw Enemies / Eggs
   enemies.forEach(enemy => enemy.draw());
@@ -2416,6 +3530,8 @@ function startGame() {
   playerUpgrades.shield = 1;
   playerUpgrades.cooldown = 1;
   playerUpgrades.homing = 0;
+  playerUpgrades.wingman = 0;
+  playerUpgrades.emp = 0;
 
   CONFIG.playerSpeed = CONFIG.playerSpeedBase;
   CONFIG.laserCooldown = CONFIG.laserCooldownBase;
@@ -2647,6 +3763,38 @@ window.addEventListener('load', () => {
     }
   });
 
+  document.getElementById('btn-buy-wingman').addEventListener('click', () => {
+    const cost = upgradeCosts.wingman;
+    if (scrapCredits >= cost && playerUpgrades.wingman === 0) {
+      scrapCredits -= cost;
+      playerUpgrades.wingman = 1;
+      
+      if (window.logAnalyticsEvent) {
+        window.logAnalyticsEvent('purchase_upgrade', { type: 'wingman', level: playerUpgrades.wingman });
+      }
+      
+      GameAudio.playPowerUpSound();
+      updateHangarUI();
+      document.getElementById('shop-scrap').innerText = `⚙️ ${scrapCredits}`;
+    }
+  });
+
+  document.getElementById('btn-buy-emp').addEventListener('click', () => {
+    const cost = upgradeCosts.emp;
+    if (scrapCredits >= cost && playerUpgrades.emp === 0) {
+      scrapCredits -= cost;
+      playerUpgrades.emp = 1;
+      
+      if (window.logAnalyticsEvent) {
+        window.logAnalyticsEvent('purchase_upgrade', { type: 'emp', level: playerUpgrades.emp });
+      }
+      
+      GameAudio.playPowerUpSound();
+      updateHangarUI();
+      document.getElementById('shop-scrap').innerText = `⚙️ ${scrapCredits}`;
+    }
+  });
+
   // Hangar launch launch
   document.getElementById('btn-shop-launch').addEventListener('click', () => {
     exitHangarAndLaunch();
@@ -2682,6 +3830,26 @@ window.addEventListener('load', () => {
       lines.classList.add('scanlines-disabled');
     }
   });
+
+  const toggleBezel = document.getElementById('toggle-bezel');
+  if (toggleBezel) {
+    toggleBezel.addEventListener('change', e => {
+      const container = document.getElementById('game-container');
+      if (e.target.checked) {
+        container.classList.add('crt-bezel-active');
+      } else {
+        container.classList.remove('crt-bezel-active');
+      }
+    });
+    
+    // Set initial state
+    const container = document.getElementById('game-container');
+    if (toggleBezel.checked) {
+      container.classList.add('crt-bezel-active');
+    } else {
+      container.classList.remove('crt-bezel-active');
+    }
+  }
 
   requestAnimationFrame(gameTick);
 });
