@@ -2543,6 +2543,7 @@ function loadAndStartLevel() {
   matrixStreams = [];
   dsLaserState = 'off';
   dsLaserTimer = 4000;
+  empCooldownTimer = 0;
 
   // Reset player position
   if (player) {
@@ -3553,6 +3554,27 @@ function startGame() {
   loadAndStartLevel();
 }
 
+function continueGame() {
+  GameAudio.init();
+  GameAudio.resume();
+
+  // Reset health to full and score to 0 (classic arcade style)
+  health = maxHealth;
+  score = 0;
+  
+  // Re-create player ship
+  player = new PlayerShip();
+
+  // Hide Game Over Screen
+  document.getElementById('game-over-screen').classList.add('hidden');
+  
+  if (window.logAnalyticsEvent) {
+    window.logAnalyticsEvent('game_start', { timestamp: Date.now(), mode: 'continue', level: currentLevel });
+  }
+
+  loadAndStartLevel();
+}
+
 function togglePause() {
   if (!gameActive || inShop || inIntro) return;
   gamePaused = !gamePaused;
@@ -3588,6 +3610,15 @@ function showGameOverScreen() {
     document.getElementById('pilot-name').focus();
   } else {
     inputContainer.classList.add('hidden');
+  }
+
+  // Handle Continue button visibility
+  const btnContinue = document.getElementById('btn-continue');
+  if (currentLevel > 1) {
+    btnContinue.innerText = `CONTINUE SECTOR ${currentLevel}`;
+    btnContinue.classList.remove('hidden');
+  } else {
+    btnContinue.classList.add('hidden');
   }
 
   document.getElementById('game-over-screen').classList.remove('hidden');
@@ -3642,6 +3673,10 @@ window.addEventListener('load', () => {
 
   document.getElementById('btn-restart').addEventListener('click', () => {
     startGame();
+  });
+
+  document.getElementById('btn-continue').addEventListener('click', () => {
+    continueGame();
   });
 
   document.getElementById('btn-main-menu').addEventListener('click', () => {
