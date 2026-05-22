@@ -226,10 +226,16 @@ function getLeaderboard() {
 }
 
 function saveHighScore(name, scoreVal) {
+  // Always save locally first as double-redundancy safety net
   const board = getLeaderboard();
   board.push({ name: name.toUpperCase().slice(0, 3), score: scoreVal });
   const sorted = board.sort((a, b) => b.score - a.score).slice(0, 8);
   localStorage.setItem('neon_striker_high_scores', JSON.stringify(sorted));
+
+  // If Firebase database is active, push the score to Firestore globally!
+  if (window.firebaseEnabled) {
+    window.saveGlobalHighScore(name, scoreVal);
+  }
 }
 
 function checkNewHighScore(scoreVal) {
@@ -238,8 +244,42 @@ function checkNewHighScore(scoreVal) {
   return scoreVal > board[board.length - 1].score;
 }
 
-function updateLeaderboardUI() {
+async function updateLeaderboardUI() {
   const body = document.getElementById('leaderboard-body');
+  body.innerHTML = '';
+  
+  // If Firebase is enabled, attempt to load global scores
+  if (window.firebaseEnabled) {
+    body.innerHTML = `
+      <tr>
+        <td colspan="3" class="text-center font-mono neon-blue blinking-text" style="padding: 2.5rem 0;">
+          🌐 SYNCING SECTOR ARCHIVES...
+        </td>
+      </tr>
+    `;
+    
+    try {
+      const globalScores = await window.getGlobalHighScores();
+      if (globalScores && globalScores.length > 0) {
+        body.innerHTML = '';
+        globalScores.forEach((record, index) => {
+          const rankClass = index === 0 ? 'rank-1' : index === 1 ? 'rank-2' : index === 2 ? 'rank-3' : '';
+          body.innerHTML += `
+            <tr>
+              <td class="${rankClass}">#${index + 1}</td>
+              <td class="${rankClass}">🌐 ${record.name}</td>
+              <td class="text-right ${rankClass}">${parseInt(record.score).toLocaleString()}</td>
+            </tr>
+          `;
+        });
+        return; // Success! We successfully rendered global scores.
+      }
+    } catch (e) {
+      console.warn("Failed to load Firebase scores, falling back to browser archives:", e);
+    }
+  }
+  
+  // Local Backup Fallback
   const board = getLeaderboard();
   body.innerHTML = '';
   board.forEach((record, index) => {
