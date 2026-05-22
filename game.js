@@ -1721,6 +1721,10 @@ function loadAndStartLevel() {
   
   const lvlData = LEVEL_DATABASE[currentLevel] || LEVEL_DATABASE[1];
   
+  if (window.logAnalyticsEvent) {
+    window.logAnalyticsEvent('level_start', { level: currentLevel, theme: lvlData.theme });
+  }
+  
   // Set Soundtrack BGM Theme
   GameAudio.setTheme(lvlData.theme);
   GameAudio.startBackgroundMusic();
@@ -2426,6 +2430,10 @@ function startGame() {
   document.getElementById('game-over-screen').classList.add('hidden');
   document.getElementById('shop-menu').classList.add('hidden');
   
+  if (window.logAnalyticsEvent) {
+    window.logAnalyticsEvent('game_start', { timestamp: Date.now() });
+  }
+  
   loadAndStartLevel();
 }
 
@@ -2446,6 +2454,10 @@ function togglePause() {
 function showGameOverScreen() {
   GameAudio.stopBackgroundMusic();
   document.getElementById('hud').classList.add('hidden');
+  
+  if (window.logAnalyticsEvent) {
+    window.logAnalyticsEvent('game_over', { score: score, level_reached: currentLevel });
+  }
   
   const finalScoreEl = document.getElementById('final-score');
   const finalWaveEl = document.getElementById('final-wave');
@@ -2541,6 +2553,9 @@ window.addEventListener('load', () => {
     const input = document.getElementById('pilot-name');
     const name = input.value.trim() || 'ACE';
     saveHighScore(name, score);
+    if (window.logAnalyticsEvent) {
+      window.logAnalyticsEvent('submit_score', { pilot: name, score: score });
+    }
     document.getElementById('high-score-input-container').classList.add('hidden');
     
     document.getElementById('game-over-screen').classList.add('hidden');
@@ -2562,6 +2577,10 @@ window.addEventListener('load', () => {
       scrapCredits -= cost;
       playerUpgrades.speed++;
       
+      if (window.logAnalyticsEvent) {
+        window.logAnalyticsEvent('purchase_upgrade', { type: 'speed', level: playerUpgrades.speed });
+      }
+      
       // Permanently adjust ship properties
       CONFIG.playerSpeed = CONFIG.playerSpeedBase * (1.0 + playerUpgrades.speed * 0.15);
       
@@ -2577,6 +2596,10 @@ window.addEventListener('load', () => {
     if (scrapCredits >= cost && lvl < 5) {
       scrapCredits -= cost;
       playerUpgrades.shield++;
+      
+      if (window.logAnalyticsEvent) {
+        window.logAnalyticsEvent('purchase_upgrade', { type: 'shield', level: playerUpgrades.shield });
+      }
       
       // Permanently adjust ship shielding pools
       maxHealth = 100 + (playerUpgrades.shield - 1) * 20;
@@ -2595,6 +2618,10 @@ window.addEventListener('load', () => {
       scrapCredits -= cost;
       playerUpgrades.cooldown++;
       
+      if (window.logAnalyticsEvent) {
+        window.logAnalyticsEvent('purchase_upgrade', { type: 'cooldown', level: playerUpgrades.cooldown });
+      }
+      
       // Permanently reduce fire CD
       CONFIG.laserCooldown = CONFIG.laserCooldownBase * (1.0 - (playerUpgrades.cooldown - 1) * 0.12);
       
@@ -2609,6 +2636,10 @@ window.addEventListener('load', () => {
     if (scrapCredits >= cost && playerUpgrades.homing === 0) {
       scrapCredits -= cost;
       playerUpgrades.homing = 1;
+      
+      if (window.logAnalyticsEvent) {
+        window.logAnalyticsEvent('purchase_upgrade', { type: 'homing', level: playerUpgrades.homing });
+      }
       
       GameAudio.playPowerUpSound();
       updateHangarUI();

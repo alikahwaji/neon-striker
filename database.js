@@ -3,6 +3,7 @@
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-app.js";
 import { getFirestore, collection, addDoc, getDocs, query, orderBy, limit, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-firestore.js";
+import { getAnalytics, logEvent } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-analytics.js";
 
 // Active Firebase Configuration Credentials
 const firebaseConfig = {
@@ -16,6 +17,7 @@ const firebaseConfig = {
 };
 
 let db = null;
+let analytics = null;
 let enabled = false;
 
 // Check if credentials are placeholders
@@ -27,6 +29,12 @@ if (!isPlaceholder) {
     db = getFirestore(app);
     enabled = true;
     console.log("🚀 Neon Striker: Global Serverless Database Initialized Successfully!");
+    
+    // Initialize Analytics if measurementId exists
+    if (firebaseConfig.measurementId) {
+      analytics = getAnalytics(app);
+      console.log("📊 Neon Striker: Firebase Analytics Active!");
+    }
   } catch (error) {
     console.error("⚠️ Neon Striker Database Initialization Failed:", error);
     enabled = false;
@@ -73,5 +81,15 @@ window.saveGlobalHighScore = async function(name, score) {
   } catch (error) {
     console.error("Error saving score to Firebase Firestore:", error);
     return false;
+  }
+};
+
+window.logAnalyticsEvent = function(eventName, eventParams = {}) {
+  if (enabled && analytics) {
+    try {
+      logEvent(analytics, eventName, eventParams);
+    } catch (e) {
+      console.warn("Analytics event tracking failed:", e);
+    }
   }
 };
