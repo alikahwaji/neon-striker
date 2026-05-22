@@ -1,23 +1,18 @@
 // database.js
 // Firebase Web SDK integration for global high scores database in NEON STRIKER
 
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getFirestore, collection, addDoc, getDocs, query, orderBy, limit, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-app.js";
+import { getFirestore, collection, addDoc, getDocs, query, orderBy, limit, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-firestore.js";
 
-// REPLACE THIS CONFIGURATION with your own Firebase Project Credentials!
-// To set this up:
-// 1. Go to Firebase Console (https://console.firebase.google.com/)
-// 2. Create a free project named "neon-striker"
-// 3. Add a Web App to get your config object
-// 4. Enable Cloud Firestore in "Test Mode" (or define read/write rules)
-// 5. Replace this credentials block with your actual app config!
+// Active Firebase Configuration Credentials
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY_HERE",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyDB13eMYLEjLww-e3Zsbc3cNgZd0Oz14tQ",
+  authDomain: "neon-striker-70d7c.firebaseapp.com",
+  projectId: "neon-striker-70d7c",
+  storageBucket: "neon-striker-70d7c.firebasestorage.app",
+  messagingSenderId: "749292733547",
+  appId: "1:749292733547:web:ae91f74e9cb5a5430edd2e",
+  measurementId: "G-W2BZWYD449"
 };
 
 let db = null;
