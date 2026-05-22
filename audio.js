@@ -1,7 +1,11 @@
 /* ----------------------------------------------------
-   NEON STRIKER - Web Audio API Sound Synthesizer Engine
-   Zero-dependency, programmatically generated retro SFX
-   and driving synthwave background music (BGM).
+   NEON STRIKER - Upgraded Web Audio API Synthesizer
+   Features programmatic SFX (lasers, explosions, level clears)
+   and a dynamic 16-step sequencer supporting unique movie themes:
+   - Star Wars: Aggressive high-speed driving octaves.
+   - Alien: Spooky deep-resonance organic drone.
+   - Interstellar: Majestic church-organ style sine arpeggios.
+   - Dune: Exotic desert micro-harmonic gold sand sweeps.
    ---------------------------------------------------- */
 
 class SynthAudioEngine {
@@ -14,41 +18,70 @@ class SynthAudioEngine {
     this.musicVolume = 0.5;
     this.sfxVolume = 0.7;
     
-    // Background Music (BGM) Sequencer State
+    // BGM Sequencer state
     this.bgmInterval = null;
     this.bgmTempo = 110; // BPM
     this.currentStep = 0;
     
-    // Pre-allocated noise buffer for explosion SFX
+    // Pre-allocated noise buffer for explosions
     this.noiseBuffer = null;
     
-    // Synthwave Bass Sequence (C Minor scale chord progression)
-    // C, Eb, Bb, G
-    this.bassNotes = [
-      65.41,  // C2
-      77.78,  // Eb2
-      58.27,  // Bb1
-      49.00   // G1
-    ];
+    // Soundtrack active theme: 'standard', 'trench', 'organic', 'gargantua', 'spice'
+    this.activeTheme = 'standard';
     
-    // Arpeggiation melody notes (C Minor chords: Cm, Eb, Bb, Gm)
-    this.arpNotes = [
-      [130.81, 155.56, 196.00, 261.63], // Cm (C3, Eb3, G3, C4)
-      [155.56, 196.00, 233.08, 311.13], // Eb (Eb3, G3, Bb3, Eb4)
-      [116.54, 146.83, 174.61, 233.08], // Bb (Bb2, D3, F3, Bb3)
-      [98.00,  116.54, 146.83, 196.00]  // Gm (G2, Bb2, D3, G3)
+    // --- Chord and Scale Settings for Movie Soundtracks ---
+    // 1. STANDARD THEME (C Minor scale)
+    this.bassStandard = [65.41, 77.78, 58.27, 49.00]; // C2, Eb2, Bb1, G1
+    this.arpStandard = [
+      [130.81, 155.56, 196.00, 261.63], // Cm
+      [155.56, 196.00, 233.08, 311.13], // Eb
+      [116.54, 146.83, 174.61, 233.08], // Bb
+      [98.00,  116.54, 146.83, 196.00]  // Gm
+    ];
+
+    // 2. TRENCH RUN - STAR WARS (D Minor aggressive battle tempo)
+    this.bassTrench = [73.42, 87.31, 65.41, 55.00]; // D2, F2, C2, A1
+    this.arpTrench = [
+      [146.83, 174.61, 220.00, 293.66], // Dm
+      [174.61, 220.00, 261.63, 349.23], // F
+      [130.81, 164.81, 196.00, 261.63], // C
+      [110.00, 138.59, 164.81, 220.00]  // Am
+    ];
+
+    // 3. XENOMORPH HIVE - ALIEN (E Locrian creepy low tension)
+    this.bassAlien = [82.41, 87.31, 73.42, 61.74]; // E2, F2, D2, B1
+    this.arpAlien = [
+      [164.81, 174.61, 207.65, 329.63], // Creepy dissonant
+      [174.61, 220.00, 246.94, 349.23],
+      [146.83, 174.61, 196.00, 293.66],
+      [123.47, 146.83, 164.81, 246.94]
+    ];
+
+    // 4. GARGANTUA - INTERSTELLAR (A Minor slow grand organ arpeggio)
+    this.bassGargantua = [55.00, 65.41, 73.42, 49.00]; // A1, C2, D2, B1
+    this.arpGargantua = [
+      [220.00, 261.63, 329.63, 440.00], // Am (A3, C4, E4, A4)
+      [261.63, 329.63, 392.00, 523.25], // C
+      [293.66, 349.23, 440.00, 587.33], // Dm
+      [246.94, 293.66, 392.00, 493.88]  // G
+    ];
+
+    // 5. SPICE ORBIT - DUNE (G Double Harmonic - exotic micro-tonal desert scale)
+    this.bassSpice = [49.00, 51.91, 58.27, 49.00]; // G1, Ab1, B1, G1
+    this.arpSpice = [
+      [196.00, 207.65, 246.94, 293.66], // G Double-Harmonic chord
+      [207.65, 261.63, 311.13, 415.30], // Ab major
+      [233.08, 293.66, 349.23, 466.16], // B minor
+      [196.00, 246.94, 293.66, 392.00]  // G
     ];
   }
 
-  // Initialize Audio Context on user gesture
+  // Initialize context on user interaction
   init() {
     if (this.ctx) return;
     
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-    if (!AudioContextClass) {
-      console.warn("Web Audio API not supported in this browser.");
-      return;
-    }
+    if (!AudioContextClass) return;
     
     this.ctx = new AudioContextClass();
     
@@ -61,13 +94,12 @@ class SynthAudioEngine {
     this.masterSfxGain.gain.setValueAtTime(this.sfxVolume, this.ctx.currentTime);
     this.masterSfxGain.connect(this.ctx.destination);
     
-    // Generate white noise buffer
     this.createNoiseBuffer();
   }
 
   createNoiseBuffer() {
     if (!this.ctx) return;
-    const bufferSize = this.ctx.sampleRate * 1.5; // 1.5 seconds of noise
+    const bufferSize = this.ctx.sampleRate * 2.0; // 2.0 seconds of noise
     const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
     const data = buffer.getChannelData(0);
     for (let i = 0; i < bufferSize; i++) {
@@ -90,10 +122,25 @@ class SynthAudioEngine {
     }
   }
 
-  // Resume context if suspended
   resume() {
     if (this.ctx && this.ctx.state === 'suspended') {
       this.ctx.resume();
+    }
+  }
+
+  setTheme(themeName) {
+    this.activeTheme = themeName;
+    
+    // Adjust tempo based on active theme
+    if (themeName === 'standard') this.bgmTempo = 110;
+    else if (themeName === 'trench') this.bgmTempo = 132;
+    else if (themeName === 'organic') this.bgmTempo = 92;
+    else if (themeName === 'gargantua') this.bgmTempo = 72; // Majestic, slow Church Organ pace
+    else if (themeName === 'spice') this.bgmTempo = 100;
+    
+    // Restart BGM seamlessly if currently playing
+    if (this.bgmInterval) {
+      this.startBackgroundMusic();
     }
   }
 
@@ -116,12 +163,36 @@ class SynthAudioEngine {
     const now = this.ctx.currentTime;
     const duration = 0.15;
 
-    // Pitch sweep: fast decay from high to low
     osc.frequency.setValueAtTime(900 * pitchMultiplier, now);
     osc.frequency.exponentialRampToValueAtTime(100 * pitchMultiplier, now + duration);
 
-    // Volume decay: fast decay
-    gain.gain.setValueAtTime(0.3, now);
+    gain.gain.setValueAtTime(0.28, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+    osc.start(now);
+    osc.stop(now + duration + 0.05);
+  }
+
+  // Homing missile launch sound: rapid frequency pitch sweep ascending
+  playHomingLaunchSound() {
+    if (!this.ctx) return;
+    this.resume();
+
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'sawtooth';
+    osc.connect(gain);
+    gain.connect(this.masterSfxGain);
+
+    const now = this.ctx.currentTime;
+    const duration = 0.22;
+
+    // Pitch sweep: fast sweep up like a rocket thruster
+    osc.frequency.setValueAtTime(250, now);
+    osc.frequency.exponentialRampToValueAtTime(1400, now + duration);
+
+    gain.gain.setValueAtTime(0.2, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
 
     osc.start(now);
@@ -144,14 +215,14 @@ class SynthAudioEngine {
     osc.frequency.setValueAtTime(350, now);
     osc.frequency.setValueAtTime(120, now + duration);
 
-    gain.gain.setValueAtTime(0.2, now);
+    gain.gain.setValueAtTime(0.18, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
 
     osc.start(now);
     osc.stop(now + duration + 0.01);
   }
 
-  // Deeper laser fired by the giant boss
+  // Deep heavy drone sweep
   playBossLaserSound() {
     if (!this.ctx) return;
     this.resume();
@@ -166,11 +237,10 @@ class SynthAudioEngine {
     const now = this.ctx.currentTime;
     const duration = 0.35;
 
-    // Deep heavy drone sweep
     osc.frequency.setValueAtTime(250, now);
     osc.frequency.linearRampToValueAtTime(45, now + duration);
 
-    gain.gain.setValueAtTime(0.4, now);
+    gain.gain.setValueAtTime(0.35, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
 
     osc.start(now);
@@ -188,9 +258,7 @@ class SynthAudioEngine {
 
     source.buffer = this.noiseBuffer;
     
-    // Lowpass filter creates heavy thudding sound
     filter.type = 'lowpass';
-    // Higher intensity = deeper/wider sound
     filter.frequency.setValueAtTime(400 * intensity, this.ctx.currentTime);
     filter.frequency.exponentialRampToValueAtTime(40, this.ctx.currentTime + 0.5 * intensity);
 
@@ -201,20 +269,20 @@ class SynthAudioEngine {
     const now = this.ctx.currentTime;
     const duration = 0.45 * intensity;
 
-    gain.gain.setValueAtTime(0.5, now);
+    gain.gain.setValueAtTime(0.45, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
 
     source.start(now);
     source.stop(now + duration + 0.05);
   }
 
-  // Power-up pick up sound: ascending futuristic arpeggio
+  // Power-up pick up sound: ascending major scales
   playPowerUpSound() {
     if (!this.ctx) return;
     this.resume();
 
     const now = this.ctx.currentTime;
-    const notes = [261.63, 329.63, 392.00, 523.25, 659.25, 783.99, 1046.50]; // Ascending C major scales
+    const notes = [261.63, 329.63, 392.00, 523.25, 659.25, 783.99, 1046.50];
     
     notes.forEach((freq, index) => {
       const osc = this.ctx.createOscillator();
@@ -226,11 +294,40 @@ class SynthAudioEngine {
       osc.connect(gain);
       gain.connect(this.masterSfxGain);
       
-      gain.gain.setValueAtTime(0.15, now + (index * 0.04));
+      gain.gain.setValueAtTime(0.12, now + (index * 0.04));
       gain.gain.exponentialRampToValueAtTime(0.001, now + (index * 0.04) + 0.12);
       
       osc.start(now + (index * 0.04));
       osc.stop(now + (index * 0.04) + 0.15);
+    });
+  }
+
+  // Epic Major Chord synth chime on clearing a level
+  playLevelClearSound() {
+    if (!this.ctx) return;
+    this.resume();
+
+    const now = this.ctx.currentTime;
+    // Epic major C triad chord (C4, E4, G4, C5)
+    const chord = [261.63, 329.63, 392.00, 523.25];
+    
+    chord.forEach((freq, i) => {
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      
+      // Warm pulse wave approximation using triangle
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, now);
+      
+      osc.connect(gain);
+      gain.connect(this.masterSfxGain);
+      
+      // Delay and decay C major chime
+      gain.gain.setValueAtTime(0.2, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 1.2 + (i * 0.15));
+      
+      osc.start(now);
+      osc.stop(now + 1.5 + (i * 0.15));
     });
   }
 
@@ -241,7 +338,6 @@ class SynthAudioEngine {
 
     const now = this.ctx.currentTime;
     
-    // Bass drop
     const osc = this.ctx.createOscillator();
     const gain = this.ctx.createGain();
     osc.type = 'sawtooth';
@@ -251,18 +347,17 @@ class SynthAudioEngine {
     osc.frequency.setValueAtTime(200, now);
     osc.frequency.exponentialRampToValueAtTime(30, now + 1.2);
     
-    gain.gain.setValueAtTime(0.6, now);
+    gain.gain.setValueAtTime(0.5, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + 1.2);
     
     osc.start(now);
     osc.stop(now + 1.25);
 
-    // Dynamic noise rumble
     this.playExplosionSound(2.5);
   }
 
   /* ----------------------------------------------------
-     BACKGROUND SYNTHWAVE MUSIC SEQUENCER (16-STEP GRID)
+     DYNAMIC MOVIE-THEMED BACKGROUND MUSIC SEQUENCER
      ---------------------------------------------------- */
   
   startBackgroundMusic() {
@@ -270,7 +365,7 @@ class SynthAudioEngine {
     if (!this.ctx) return;
     this.stopBackgroundMusic();
     
-    const stepDuration = 60 / this.bgmTempo / 2; // Eighth notes
+    const stepDuration = 60 / this.bgmTempo / 2; // 8th notes
     let nextNoteTime = this.ctx.currentTime;
     
     this.bgmInterval = setInterval(() => {
@@ -290,65 +385,120 @@ class SynthAudioEngine {
   }
 
   scheduleSequencerStep(time) {
-    const chordIndex = Math.floor(this.currentStep / 16) % this.bassNotes.length;
+    let bassNotes = this.bassStandard;
+    let arpNotes = this.arpStandard;
+    let synthType = 'sawtooth';
+    let arpeggiatorType = 'triangle';
+    let bassVolume = 0.12;
+    let arpVolume = 0.05;
+
+    // Shift sequencer parameters depending on the active movie theme
+    switch (this.activeTheme) {
+      case 'trench': // Star Wars
+        bassNotes = this.bassTrench;
+        arpNotes = this.arpTrench;
+        synthType = 'sawtooth';
+        arpeggiatorType = 'sawtooth'; // Aggressive military saw notes
+        bassVolume = 0.14;
+        break;
+      case 'organic': // Alien
+        bassNotes = this.bassAlien;
+        arpNotes = this.arpAlien;
+        synthType = 'triangle'; // Smooth spooky pulse
+        arpeggiatorType = 'sine'; // Whispering sine clicks
+        bassVolume = 0.16;
+        arpVolume = 0.04;
+        break;
+      case 'gargantua': // Interstellar
+        bassNotes = this.bassGargantua;
+        arpNotes = this.arpGargantua;
+        synthType = 'sine'; // Pipe organ approximation
+        arpeggiatorType = 'sine';
+        bassVolume = 0.18; // Heavy massive drones
+        arpVolume = 0.07;
+        break;
+      case 'spice': // Dune
+        bassNotes = this.bassSpice;
+        arpNotes = this.arpSpice;
+        synthType = 'sawtooth';
+        arpeggiatorType = 'triangle';
+        bassVolume = 0.12;
+        arpVolume = 0.06;
+        break;
+      default: // Standard
+        bassNotes = this.bassStandard;
+        arpNotes = this.arpStandard;
+        synthType = 'sawtooth';
+        arpeggiatorType = 'triangle';
+        break;
+    }
+
+    const chordIndex = Math.floor(this.currentStep / 16) % bassNotes.length;
     const stepInPattern = this.currentStep % 16;
     
-    const bassFreq = this.bassNotes[chordIndex];
-    const chords = this.arpNotes[chordIndex];
+    const bassFreq = bassNotes[chordIndex];
+    const chords = arpNotes[chordIndex];
     
-    // Play Driving Synthwave Bassline on 8th notes (steps 0, 2, 3, 5, 6, 8, 10, 11, 13, 14 etc.)
+    // Play Driving Synthwave Bassline on 8th notes
     const bassRhythm = [0, 2, 4, 6, 8, 10, 12, 14];
     if (bassRhythm.includes(stepInPattern)) {
       const osc = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
       
-      osc.type = 'sawtooth';
+      osc.type = synthType;
       
       // Octave pattern jumps for classic synthwave feel
       let freq = bassFreq;
-      if (stepInPattern % 4 === 2) freq *= 2; // Jump up 1 octave on off-beats
+      if (this.activeTheme === 'trench') {
+        // Fast triple military rhythm
+        if (stepInPattern % 4 !== 0) freq *= 2;
+      } else {
+        if (stepInPattern % 4 === 2) freq *= 2; // Jump up 1 octave on off-beats
+      }
       
       osc.frequency.setValueAtTime(freq, time);
       
       osc.connect(gain);
       gain.connect(this.masterMusicGain);
       
-      gain.gain.setValueAtTime(0.12, time);
-      gain.gain.exponentialRampToValueAtTime(0.001, time + 0.18);
+      gain.gain.setValueAtTime(bassVolume, time);
+      gain.gain.exponentialRampToValueAtTime(0.001, time + (this.activeTheme === 'gargantua' ? 0.35 : 0.18));
       
       osc.start(time);
-      osc.stop(time + 0.2);
+      osc.stop(time + (this.activeTheme === 'gargantua' ? 0.4 : 0.2));
     }
     
-    // Synthesized Melodic Arpeggio Pattern (adds beautiful sci-fi backing theme)
-    const arpSteps = {
-      0: 0,  // chord root
-      2: 1,  // third
-      4: 2,  // fifth
-      6: 3,  // octave
-      8: 2,  // fifth
-      10: 1, // third
-      12: 3, // octave
-      14: 2  // fifth
-    };
+    // Interstellar / Organs use customized majestic arpeggio step models
+    let arpeggioSteps = [0, 2, 4, 6, 8, 10, 12, 14];
+    if (this.activeTheme === 'gargantua') {
+      // Slow majestic church organ sweeping steps
+      arpeggioSteps = [0, 4, 8, 12];
+    }
     
-    if (arpSteps[stepInPattern] !== undefined) {
-      const noteToPlay = chords[arpSteps[stepInPattern]];
+    if (arpeggioSteps.includes(stepInPattern)) {
+      let chordStep = 0;
+      if (this.activeTheme === 'gargantua') {
+        chordStep = (stepInPattern / 4) % chords.length;
+      } else {
+        const arpStepsMap = { 0: 0, 2: 1, 4: 2, 6: 3, 8: 2, 10: 1, 12: 3, 14: 2 };
+        chordStep = arpStepsMap[stepInPattern];
+      }
+
+      const noteToPlay = chords[chordStep];
       const osc = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
       
-      osc.type = 'triangle';
+      osc.type = arpeggiatorType;
       osc.frequency.setValueAtTime(noteToPlay * 2, time); // Play one octave higher
       
       osc.connect(gain);
       gain.connect(this.masterMusicGain);
       
-      // Softer volume for background arpeggio
-      gain.gain.setValueAtTime(0.05, time);
-      gain.gain.exponentialRampToValueAtTime(0.001, time + 0.25);
+      gain.gain.setValueAtTime(arpVolume, time);
+      gain.gain.exponentialRampToValueAtTime(0.001, time + (this.activeTheme === 'gargantua' ? 0.45 : 0.25));
       
       osc.start(time);
-      osc.stop(time + 0.3);
+      osc.stop(time + (this.activeTheme === 'gargantua' ? 0.5 : 0.3));
     }
 
     // Progress sequencer

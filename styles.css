@@ -6,7 +6,7 @@
 :root {
   /* Dynamic Neon Palette */
   --bg-color: #04020d;
-  --panel-bg: rgba(13, 8, 28, 0.75);
+  --panel-bg: rgba(13, 8, 28, 0.85);
   --border-color: rgba(0, 240, 255, 0.35);
   --neon-blue: #00f0ff;
   --neon-magenta: #ff00aa;
@@ -14,12 +14,14 @@
   --neon-yellow: #ffea00;
   --neon-green: #39ff14;
   --neon-red: #ff003c;
+  --neon-gold: #ffb700;
   
   /* Glowing Shadows */
   --glow-blue: 0 0 10px rgba(0, 240, 255, 0.6), 0 0 20px rgba(0, 240, 255, 0.3);
-  --glow-magenta: 0 0 10px rgba(ff, 0, aa, 0.6), 0 0 20px rgba(ff, 0, aa, 0.3);
+  --glow-magenta: 0 0 10px rgba(255, 0, 170, 0.6), 0 0 20px rgba(255, 0, 170, 0.3);
   --glow-green: 0 0 10px rgba(57, 255, 20, 0.6), 0 0 20px rgba(57, 255, 20, 0.3);
   --glow-red: 0 0 10px rgba(255, 0, 60, 0.6), 0 0 20px rgba(255, 0, 60, 0.3);
+  --glow-gold: 0 0 10px rgba(255, 183, 0, 0.6), 0 0 20px rgba(255, 183, 0, 0.3);
 }
 
 /* Reset and Global Styles */
@@ -156,8 +158,8 @@ body {
   height: 100%;
   z-index: 5;
   background: var(--panel-bg);
-  backdrop-filter: blur(10px) saturate(180%);
-  -webkit-backdrop-filter: blur(10px) saturate(180%);
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
   border: 1px solid rgba(255, 255, 255, 0.05);
   display: flex;
   flex-direction: column;
@@ -168,8 +170,8 @@ body {
 }
 
 .hidden {
-  opacity: 0;
-  pointer-events: none;
+  opacity: 0 !important;
+  pointer-events: none !important;
   transform: scale(0.95);
 }
 
@@ -210,6 +212,10 @@ body {
   animation: pulse-glow 1.5s infinite alternate;
 }
 
+.blinking-text {
+  animation: blink-anim 0.8s infinite steps(2, start);
+}
+
 @keyframes pulse-glow {
   0% {
     text-shadow: 0 0 10px var(--neon-magenta), 0 0 20px var(--neon-magenta);
@@ -217,10 +223,6 @@ body {
   100% {
     text-shadow: 0 0 20px var(--neon-magenta), 0 0 40px var(--neon-magenta), 0 0 60px var(--neon-purple);
   }
-}
-
-.blink {
-  animation: blink-anim 1s infinite steps(2, start);
 }
 
 @keyframes blink-anim {
@@ -354,17 +356,17 @@ body {
   width: 100%;
 }
 
-.hud-score-panel, .hud-wave-panel, .hud-high-panel {
+.hud-score-panel, .hud-wave-panel, .hud-high-panel, .hud-scrap-panel {
   display: flex;
   flex-direction: column;
-  background: rgba(4, 2, 10, 0.5);
-  padding: 0.5rem 1.25rem;
+  background: rgba(4, 2, 10, 0.65);
+  padding: 0.5rem 1rem;
   border-radius: 4px;
   border: 1px solid rgba(255, 255, 255, 0.05);
   backdrop-filter: blur(4px);
 }
 
-.hud-wave-panel {
+.hud-wave-panel, .hud-scrap-panel {
   align-items: center;
 }
 
@@ -373,7 +375,7 @@ body {
 }
 
 .hud-label {
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   letter-spacing: 0.15em;
   color: #8c889f;
   margin-bottom: 0.25rem;
@@ -384,7 +386,7 @@ body {
 .hud-value {
   font-family: 'Orbitron', sans-serif;
   font-weight: 900;
-  font-size: 1.6rem;
+  font-size: 1.5rem;
   letter-spacing: 0.05em;
 }
 
@@ -392,6 +394,8 @@ body {
 .neon-magenta { color: var(--neon-magenta); text-shadow: var(--glow-magenta); }
 .neon-yellow { color: var(--neon-yellow); text-shadow: 0 0 10px rgba(255, 234, 0, 0.5); }
 .neon-red { color: var(--neon-red); text-shadow: var(--glow-red); }
+.neon-green { color: var(--neon-green); text-shadow: var(--glow-green); }
+.neon-gold { color: var(--neon-gold); text-shadow: var(--glow-gold); }
 
 /* Health/Shield display bottom */
 .hud-bottom {
@@ -405,7 +409,7 @@ body {
   display: flex;
   flex-direction: column;
   width: 250px;
-  background: rgba(4, 2, 10, 0.5);
+  background: rgba(4, 2, 10, 0.65);
   padding: 0.5rem 1rem;
   border-radius: 4px;
   border: 1px solid rgba(255, 255, 255, 0.05);
@@ -650,17 +654,119 @@ input[type=range]::-webkit-slider-thumb:hover {
 .rank-3 { color: #cd7f32; }
 
 /* Scrollbar styling */
-.leaderboard-container::-webkit-scrollbar {
+.leaderboard-container::-webkit-scrollbar, #shop-menu::-webkit-scrollbar {
   width: 6px;
 }
 
-.leaderboard-container::-webkit-scrollbar-track {
+.leaderboard-container::-webkit-scrollbar-track, #shop-menu::-webkit-scrollbar-track {
   background: rgba(0, 0, 0, 0.2);
 }
 
-.leaderboard-container::-webkit-scrollbar-thumb {
+.leaderboard-container::-webkit-scrollbar-thumb, #shop-menu::-webkit-scrollbar-thumb {
   background: var(--neon-purple);
   border-radius: 3px;
+}
+
+/* ----------------------------------------------------
+   Nanotech Upgrade Hangar Shop Styles
+   ---------------------------------------------------- */
+.shop-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1.25rem;
+  width: 100%;
+  max-width: 750px;
+  margin: 0 auto;
+}
+
+.shop-card {
+  background: rgba(18, 9, 36, 0.55);
+  border: 1px solid rgba(139, 0, 255, 0.25);
+  border-radius: 6px;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.15);
+}
+
+.shop-card:hover {
+  border-color: var(--neon-blue);
+  box-shadow: 0 0 15px rgba(0, 240, 255, 0.15);
+  transform: translateY(-3px);
+}
+
+.shop-icon {
+  font-size: 2.2rem;
+  margin-bottom: 0.5rem;
+  filter: drop-shadow(0 0 5px rgba(255,255,255,0.1));
+}
+
+.shop-card h3 {
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 700;
+  font-size: 1rem;
+  color: #fff;
+  letter-spacing: 0.1em;
+  margin-bottom: 0.5rem;
+}
+
+.shop-card p {
+  font-size: 0.82rem;
+  color: #b0aebf;
+  line-height: 1.4;
+  margin-bottom: 1rem;
+  min-height: 2.8rem;
+}
+
+.shop-row-status {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0.35rem 0.75rem;
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 4px;
+  margin-bottom: 0.75rem;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.85rem;
+  font-weight: bold;
+}
+
+.shop-price {
+  color: var(--neon-green);
+  text-shadow: 0 0 5px rgba(57, 255, 20, 0.3);
+}
+
+.shop-lvl {
+  color: var(--neon-yellow);
+}
+
+.btn-shop {
+  width: 100%;
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 700;
+  font-size: 0.85rem;
+  letter-spacing: 0.08em;
+  padding: 0.55rem 0;
+  border-radius: 4px;
+  border: 1px solid var(--neon-blue);
+  color: var(--neon-blue);
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-shop:hover:not(:disabled) {
+  background: var(--neon-blue);
+  color: #000;
+  box-shadow: 0 0 10px var(--neon-blue);
+}
+
+.btn-shop:disabled {
+  border-color: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.25);
+  cursor: not-allowed;
 }
 
 /* ----------------------------------------------------

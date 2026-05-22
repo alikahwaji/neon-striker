@@ -33,8 +33,12 @@
             <span class="hud-label">SCORE</span>
             <span id="hud-score" class="hud-value neon-blue">000000</span>
           </div>
+          <div class="hud-scrap-panel">
+            <span class="hud-label">NANOTECH SCRAP</span>
+            <span id="hud-scrap" class="hud-value neon-green">⚙️ 000</span>
+          </div>
           <div class="hud-wave-panel">
-            <span class="hud-label">WAVE</span>
+            <span class="hud-label">LEVEL</span>
             <span id="hud-wave" class="hud-value neon-magenta">1</span>
           </div>
           <div class="hud-high-panel">
@@ -62,7 +66,7 @@
       <div id="start-menu" class="overlay-panel">
         <div class="logo-area">
           <h1 class="game-title select-none">NEON<br><span class="pulsing-text">STRIKER</span></h1>
-          <p class="subtitle select-none">CYBERNETIC DEFENDER // VER 1.0.4</p>
+          <p class="subtitle select-none">CYBERNETIC DEFENDER // VER 1.5.0</p>
         </div>
 
         <div class="menu-actions">
@@ -144,6 +148,74 @@
         <button id="btn-scores-back" class="btn btn-secondary select-none">RETURN TO PORT</button>
       </div>
 
+      <!-- Level Title Intro Announcement Overlay -->
+      <div id="level-intro-screen" class="overlay-panel hidden" style="background: rgba(4, 2, 10, 0.9);">
+        <div class="level-intro-content text-center">
+          <p class="font-mono neon-yellow blinking-text tracking-widest" style="font-size: 0.9rem;">⚠️ FIGHTER HYPERSPACE SEQUENCE INITIALIZING ⚠️</p>
+          <h1 id="level-intro-title" class="game-title pulsing-text" style="font-size: 3.5rem; margin-top: 1.5rem; margin-bottom: 0.5rem; letter-spacing: 0.1em;">LEVEL 1</h1>
+          <h2 id="level-intro-subtitle" class="neon-blue font-mono" style="letter-spacing: 0.25em; font-size: 1.3rem; margin-bottom: 2.5rem;">OUTER FRONTIER</h2>
+          <div style="background: rgba(0,0,0,0.4); padding: 1.25rem; border-radius: 4px; border: 1px solid rgba(255,255,255,0.05); max-width: 550px; margin: 0 auto;">
+            <p id="level-intro-quote" class="font-mono text-center italic" style="color: #b0aebf; font-size: 0.95rem; line-height: 1.6;"></p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Nanotech Upgrade Hangar Shop Overlay -->
+      <div id="shop-menu" class="overlay-panel hidden" style="justify-content: flex-start; padding-top: 2.5rem; overflow-y: auto;">
+        <h2 class="neon-title text-center select-none" style="margin-bottom: 0.5rem; font-size: 2.2rem;">CYBERNETIC HANGAR</h2>
+        <p class="subtitle text-center select-none" style="margin-bottom: 2rem;">PERMANENT FIGHTER UPGRADES // NANOTECH SCRAP: <span id="shop-scrap" class="neon-green">⚙️ 0</span></p>
+
+        <div class="shop-grid">
+          <div class="shop-card" id="shop-card-speed">
+            <div class="shop-icon">🚀</div>
+            <h3>HULL THRUSTERS</h3>
+            <p>Increases ship movement thrust and inertia speed (+15%).</p>
+            <div class="shop-row-status">
+              <span class="shop-price" id="price-speed">⚙️ 100</span>
+              <span class="shop-lvl" id="lvl-speed">LVL 1</span>
+            </div>
+            <button id="btn-buy-speed" class="btn-shop">UPGRADE</button>
+          </div>
+
+          <div class="shop-card" id="shop-card-shield">
+            <div class="shop-icon">🛡️</div>
+            <h3>SHIELD CAPACITORS</h3>
+            <p>Increases maximum ship shielding pool (+20 max shields).</p>
+            <div class="shop-row-status">
+              <span class="shop-price" id="price-shield">⚙️ 150</span>
+              <span class="shop-lvl" id="lvl-shield">LVL 1</span>
+            </div>
+            <button id="btn-buy-shield" class="btn-shop">UPGRADE</button>
+          </div>
+
+          <div class="shop-card" id="shop-card-cooldown">
+            <div class="shop-icon">⚡</div>
+            <h3>LASER CHARGERS</h3>
+            <p>Decreases laser cannon recycle delay (-15% cooldown).</p>
+            <div class="shop-row-status">
+              <span class="shop-price" id="price-cooldown">⚙️ 200</span>
+              <span class="shop-lvl" id="lvl-cooldown">LVL 1</span>
+            </div>
+            <button id="btn-buy-cooldown" class="btn-shop">UPGRADE</button>
+          </div>
+
+          <div class="shop-card" id="shop-card-homing">
+            <div class="shop-icon">🎯</div>
+            <h3>HOMING LAUNCHER</h3>
+            <p>Unlocks auto-firing shoulder-mounted homing rocket launchers.</p>
+            <div class="shop-row-status">
+              <span class="shop-price" id="price-homing">⚙️ 300</span>
+              <span class="shop-lvl" id="lvl-homing">LOCKED</span>
+            </div>
+            <button id="btn-buy-homing" class="btn-shop">UNLOCK</button>
+          </div>
+        </div>
+
+        <div style="margin-top: 2rem; display: flex; gap: 1rem; justify-content: center; width: 100%;">
+          <button id="btn-shop-launch" class="btn btn-primary select-none" style="min-width: 250px;">LAUNCH FIGHTER</button>
+        </div>
+      </div>
+
       <!-- Pause Game Overlay -->
       <div id="pause-screen" class="overlay-panel text-center hidden pause-bg">
         <h2 class="neon-magenta pulsing-text select-none font-arcade">SIMULATION PAUSED</h2>
@@ -163,7 +235,7 @@
             <span id="final-score" class="score-val neon-blue">000000</span>
           </div>
           <div class="score-row">
-            <span class="score-lbl">WAVES RESISTED:</span>
+            <span class="score-lbl">SECTOR ADVANCE:</span>
             <span id="final-wave" class="score-val neon-magenta">1</span>
           </div>
         </div>
