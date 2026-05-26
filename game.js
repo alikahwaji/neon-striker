@@ -2617,6 +2617,14 @@ function spawnCampaignForces(lvlData) {
           type = 'swarmer';
         } else if (grid.kamikazes) {
           type = 'kamikaze';
+        } else if (grid.lightCycles && Math.random() < 0.38) {
+          type = 'lightCycle';
+        } else if (grid.shieldBlockers && Math.random() < 0.28) {
+          type = 'shieldBlocker';
+        } else if (grid.snipers && Math.random() < 0.25) {
+          type = 'sniper';
+        } else if (grid.sentries && r === 0) {
+          type = 'sentry';
         }
 
         enemies.push(new Enemy(x, y - 250, type, c * 0.45));
