@@ -87,6 +87,12 @@ body {
   pointer-events: none;
   opacity: 0.85;
   transition: opacity 0.3s ease;
+  animation: scanline-roll 30s linear infinite;
+}
+
+@keyframes scanline-roll {
+  0% { background-position: 0 0, 0 0; }
+  100% { background-position: 0 1000px, 0 0; }
 }
 
 .scanlines-disabled {
