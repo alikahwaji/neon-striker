@@ -33,6 +33,13 @@ let score = 0;
 let highScore = 0;
 let currentLevel = 1;
 
+// All-Ages Expansion globals
+let selectedDifficulty = 'hero'; // 'cadet', 'hero', 'elite'
+let selectedSkin = 'default';    // 'default', 'toxic', 'solar', 'void', 'saucer'
+let cheatRainbow = false;
+let cheatGod = false;
+let cheatMatrix = false;
+
 // Upgrade Levels & Player Core Stats
 let scrapCredits = 0;
 let maxHealth = 100;
@@ -44,7 +51,8 @@ const playerUpgrades = {
   cooldown: 1,   // Max level 5
   homing: 0,     // 0 = Locked, 1 = Unlocked
   wingman: 0,    // 0 = Locked, 1 = Unlocked
-  emp: 0         // 0 = Locked, 1 = Unlocked
+  emp: 0,        // 0 = Locked, 1 = Unlocked
+  magnet: 0      // 0 = Locked, 1 = Unlocked
 };
 
 const upgradeCosts = {
@@ -53,7 +61,8 @@ const upgradeCosts = {
   cooldown: [200, 280, 380, 500, 650],
   homing: 300,
   wingman: 350,
-  emp: 400
+  emp: 400,
+  magnet: 250
 };
 
 // Active weapon powerups
@@ -276,15 +285,22 @@ function getLeaderboard() {
 }
 
 function saveHighScore(name, scoreVal) {
+  let taggedName = name;
+  if (selectedDifficulty === 'elite') {
+    taggedName = `[ELITE] ${name}`;
+  } else if (selectedDifficulty === 'cadet') {
+    taggedName = `[CADET] ${name}`;
+  }
+
   // Always save locally first as double-redundancy safety net
   const board = getLeaderboard();
-  board.push({ name: name.toUpperCase().slice(0, 12), score: scoreVal });
+  board.push({ name: taggedName.toUpperCase().slice(0, 18), score: scoreVal });
   const sorted = board.sort((a, b) => b.score - a.score).slice(0, 8);
   localStorage.setItem('neon_striker_high_scores', JSON.stringify(sorted));
 
   // If Firebase database is active, push the score to Firestore globally!
   if (window.firebaseEnabled) {
-    window.saveGlobalHighScore(name, scoreVal);
+    window.saveGlobalHighScore(taggedName, scoreVal);
   }
 }
 
@@ -415,7 +431,10 @@ class PlayerShip {
 
     // Interstellar Black Hole gravity pull towards center (400px X coordinate)
     if (lvlData.blackHole) {
-      const pullForce = 0.16;
+      let pullForce = 0.16;
+      if (selectedDifficulty === 'cadet') pullForce = 0.08;
+      else if (selectedDifficulty === 'elite') pullForce = 0.22;
+      
       const pullDir = player.x + player.width / 2 < 400 ? 1 : -1;
       this.vx += pullDir * pullForce;
     }
@@ -444,14 +463,92 @@ class PlayerShip {
       return;
     }
 
+    let primary = '#00f0ff';
+    let secondary = '#ff00aa';
+    let fill = '#01152a';
+
+    if (selectedSkin === 'toxic') {
+      primary = '#39ff14';
+      secondary = '#ffffff';
+      fill = '#011c05';
+    } else if (selectedSkin === 'solar') {
+      primary = '#ffea00';
+      secondary = '#ff003c';
+      fill = '#1f1300';
+    } else if (selectedSkin === 'void') {
+      primary = '#bd00ff';
+      secondary = '#00f0ff';
+      fill = '#0f001f';
+    } else if (selectedSkin === 'rainbow') {
+      primary = `hsl(${Math.floor(Date.now() / 12) % 360}, 100%, 60%)`;
+      secondary = `hsl(${Math.floor(Date.now() / 12 + 180) % 360}, 100%, 50%)`;
+      fill = '#000000';
+    }
+
+    // Flying Saucer cheat skin
+    if (selectedSkin === 'saucer') {
+      const sx = this.x + this.width / 2;
+      const sy = this.y + this.height / 2;
+      const radius = 22;
+      
+      ctx.save();
+      ctx.shadowBlur = 18;
+      ctx.shadowColor = '#bd00ff';
+      ctx.strokeStyle = '#bd00ff';
+      ctx.fillStyle = '#0f001f';
+      ctx.lineWidth = 3;
+      
+      // Main saucer dome
+      ctx.beginPath();
+      ctx.ellipse(sx, sy, radius, radius * 0.45, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      
+      // Upper cockpit dome
+      ctx.strokeStyle = '#00f0ff';
+      ctx.fillStyle = 'rgba(0, 240, 255, 0.25)';
+      ctx.beginPath();
+      ctx.arc(sx, sy - 4, 8, Math.PI, 0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      
+      // Spinning core lights
+      const numLights = 6;
+      ctx.fillStyle = '#ffea00';
+      const angleOffset = Date.now() * 0.005;
+      for (let i = 0; i < numLights; i++) {
+        const angle = (i / numLights) * Math.PI * 2 + angleOffset;
+        const lx = sx + Math.cos(angle) * (radius * 0.7);
+        const ly = sy + Math.sin(angle) * (radius * 0.3);
+        ctx.beginPath();
+        ctx.arc(lx, ly, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      
+      // God mode pulsing barrier
+      if (cheatGod) {
+        ctx.strokeStyle = '#ffffff';
+        ctx.shadowColor = '#00f0ff';
+        ctx.shadowBlur = 20;
+        ctx.lineWidth = 3.5 + Math.sin(Date.now() / 100) * 1.5;
+        ctx.beginPath();
+        ctx.arc(sx, sy, 34, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      
+      ctx.restore();
+      return;
+    }
+
     ctx.save();
     ctx.shadowBlur = 15;
-    ctx.shadowColor = CONFIG.playerShieldActive() ? '#8b00ff' : '#00f0ff';
+    ctx.shadowColor = CONFIG.playerShieldActive() ? '#8b00ff' : primary;
     ctx.lineWidth = 2.5;
 
     // Draw main hull shape
-    ctx.strokeStyle = '#00f0ff';
-    ctx.fillStyle = '#01152a';
+    ctx.strokeStyle = primary;
+    ctx.fillStyle = fill;
     ctx.beginPath();
     ctx.moveTo(this.x + this.width / 2, this.y); // Nose
     ctx.lineTo(this.x + this.width, this.y + this.height); // Wing tip right
@@ -463,7 +560,7 @@ class PlayerShip {
     ctx.stroke();
 
     // Draw secondary details
-    ctx.strokeStyle = '#ff00aa';
+    ctx.strokeStyle = secondary;
     ctx.beginPath();
     ctx.moveTo(this.x + this.width / 2, this.y + 8);
     ctx.lineTo(this.x + this.width - 12, this.y + this.height - 10);
@@ -495,7 +592,15 @@ class PlayerShip {
     ctx.fill();
 
     // Shield bubble
-    if (CONFIG.playerShieldActive()) {
+    if (cheatGod) {
+      ctx.strokeStyle = '#ffffff';
+      ctx.shadowColor = '#00f0ff';
+      ctx.shadowBlur = 20;
+      ctx.lineWidth = 3.5 + Math.sin(Date.now() / 100) * 1.5;
+      ctx.beginPath();
+      ctx.arc(this.x + this.width / 2, this.y + this.height / 2, 34, 0, Math.PI * 2);
+      ctx.stroke();
+    } else if (CONFIG.playerShieldActive()) {
       ctx.strokeStyle = '#ff00aa';
       ctx.shadowColor = '#ff00aa';
       ctx.lineWidth = 2;
@@ -689,10 +794,19 @@ class Laser {
     this.y = y;
     this.vx = vx;
     this.vy = vy;
-    this.color = color;
+    
+    // Cheat Rainbow or Saucer skin projectile overrides
+    if (vy < 0 && cheatRainbow) {
+      this.color = `hsl(${Math.floor(Date.now() / 4) % 360}, 100%, 60%)`;
+    } else if (vy < 0 && selectedSkin === 'saucer') {
+      this.color = '#bd00ff';
+    } else {
+      this.color = color;
+    }
+    
     this.damage = damage;
-    this.width = width;
-    this.height = height;
+    this.width = (vy < 0 && selectedSkin === 'saucer') ? 12 : width;
+    this.height = (vy < 0 && selectedSkin === 'saucer') ? 12 : height;
     this.piercing = piercing;
   }
 
@@ -701,6 +815,16 @@ class Laser {
     if (bulletTimeActive && !isPlayerLaser) {
       mult = 0.4;
     }
+    
+    // Scale enemy bullet speed by difficulty
+    if (!isPlayerLaser) {
+      if (selectedDifficulty === 'cadet') {
+        mult *= 0.7; // 30% slower
+      } else if (selectedDifficulty === 'elite') {
+        mult *= 1.25; // 25% faster
+      }
+    }
+    
     this.x += this.vx * mult;
     this.y += this.vy * mult;
   }
@@ -710,7 +834,22 @@ class Laser {
     ctx.shadowBlur = 10;
     ctx.shadowColor = this.color;
     ctx.fillStyle = this.color;
-    ctx.fillRect(this.x - this.width / 2, this.y - this.height / 2, this.width, this.height);
+    
+    if (this.width === this.height) {
+      // Draw stunning energy ring
+      ctx.strokeStyle = this.color;
+      ctx.shadowBlur = 15;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.width / 2, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, 2, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.fillRect(this.x - this.width / 2, this.y - this.height / 2, this.width, this.height);
+    }
     ctx.restore();
   }
 
@@ -1090,13 +1229,19 @@ class Enemy {
       if (this.shootTimer <= 0) {
         this.shoot();
         
+        let baseTimer = 2200 + Math.random() * 2500;
         if (this.type === 'boss' || this.type === 'boss2') {
-          this.shootTimer = 1400 - currentLevel * 80;
+          baseTimer = 1400 - currentLevel * 80;
         } else if (this.type === 'sandworm') {
-          this.shootTimer = 800; // Super fast firing rate
-        } else {
-          this.shootTimer = 2200 + Math.random() * 2500;
+          baseTimer = 800; // Super fast firing rate
         }
+        
+        if (selectedDifficulty === 'cadet') {
+          baseTimer *= 1.35; // 35% slower reload
+        } else if (selectedDifficulty === 'elite') {
+          baseTimer *= 0.8; // 20% faster reload
+        }
+        this.shootTimer = baseTimer;
       }
     }
   }
@@ -1612,7 +1757,7 @@ class ScrapCredit {
       const dy = py - this.y;
       const dist = Math.sqrt(dx*dx + dy*dy);
       
-      if (dist < 180) { // Magnet radius 180px
+      if (playerUpgrades.magnet > 0 && dist < 240) { // Magnet radius 240px
         const magnetSpeed = 8.5;
         this.vx += (dx / dist) * magnetSpeed - this.vx;
         this.vy += (dy / dist) * magnetSpeed - this.vy;
@@ -2145,7 +2290,7 @@ function drawSynthwaveBackground() {
     ctx.fillStyle = '#0d0801'; // Gold Sand Orbit backdrop
   } else if (lvlData.theme === 'organic') {
     ctx.fillStyle = '#010603'; // Alien dark green nest backdrop
-  } else if (lvlData.theme === 'matrix') {
+  } else if (lvlData.theme === 'matrix' || cheatMatrix) {
     ctx.fillStyle = '#000802'; // Dark Matrix green backdrop
   } else if (lvlData.theme === 'tron') {
     ctx.fillStyle = '#02000c'; // TRON dark neon purple/blue backdrop
@@ -2184,7 +2329,7 @@ function drawSynthwaveBackground() {
   });
 
   // Matrix digital code rain in background
-  if (lvlData.theme === 'matrix') {
+  if (lvlData.theme === 'matrix' || cheatMatrix) {
     if (matrixStreams.length === 0) {
       const cols = Math.floor(CONFIG.width / 16);
       for (let i = 0; i < cols; i++) {
@@ -2290,7 +2435,7 @@ function drawSynthwaveBackground() {
   } else if (lvlData.theme === 'tron') {
     gridLineCol1 = 'rgba(0, 240, 255, 0.35)'; // Bright cyan
     gridLineCol2 = 'rgba(0, 240, 255, ';
-  } else if (lvlData.theme === 'matrix') {
+  } else if (lvlData.theme === 'matrix' || cheatMatrix) {
     gridLineCol1 = 'rgba(0, 255, 65, 0.08)'; // Dim green
     gridLineCol2 = 'rgba(0, 255, 65, ';
   } else if (lvlData.theme === 'wey_sentry') {
@@ -2516,6 +2661,13 @@ function updateHangarUI() {
   document.getElementById('lvl-emp').innerText = empUnlocked ? 'UNLOCKED' : 'LOCKED';
   document.getElementById('price-emp').innerText = empUnlocked ? 'MAXED' : `⚙️ ${empCost}`;
   document.getElementById('btn-buy-emp').disabled = empUnlocked || scrapCredits < empCost;
+
+  // Update Magnet stats
+  const magnetCost = upgradeCosts.magnet;
+  const magnetUnlocked = playerUpgrades.magnet > 0;
+  document.getElementById('lvl-magnet').innerText = magnetUnlocked ? 'UNLOCKED' : 'LOCKED';
+  document.getElementById('price-magnet').innerText = magnetUnlocked ? 'MAXED' : `⚙️ ${magnetCost}`;
+  document.getElementById('btn-buy-magnet').disabled = magnetUnlocked || scrapCredits < magnetCost;
 }
 
 function exitHangarAndLaunch() {
@@ -3338,6 +3490,13 @@ function spawnFacehuggerDrones(x, y) {
 }
 
 function damagePlayer(amount) {
+  if (cheatGod) {
+    floatingTexts.push(new FloatingText(player.x + player.width / 2, player.y - 20, 'GOD MODE ACTIVE', '#ffffff'));
+    GameAudio.playPowerUpSound();
+    player.invulnFrames = 30;
+    return;
+  }
+
   if (player.invulnFrames > 0) return;
 
   if (CONFIG.playerShieldActive()) {
@@ -3589,7 +3748,9 @@ function continueGame() {
 
   // Reset health to full and score to 0 (classic arcade style)
   health = maxHealth;
-  score = 0;
+  if (selectedDifficulty !== 'cadet') {
+    score = 0;
+  }
   
   // Re-create player ship
   player = new PlayerShip();
@@ -3643,7 +3804,7 @@ function showGameOverScreen() {
 
   // Handle Continue button visibility
   const btnContinue = document.getElementById('btn-continue');
-  if (currentLevel > 1) {
+  if (currentLevel > 1 && selectedDifficulty !== 'elite') {
     btnContinue.innerText = `CONTINUE SECTOR ${currentLevel}`;
     btnContinue.classList.remove('hidden');
   } else {
@@ -3861,6 +4022,22 @@ window.addEventListener('load', () => {
     }
   });
 
+  document.getElementById('btn-buy-magnet').addEventListener('click', () => {
+    const cost = upgradeCosts.magnet;
+    if (scrapCredits >= cost && playerUpgrades.magnet === 0) {
+      scrapCredits -= cost;
+      playerUpgrades.magnet = 1;
+      
+      if (window.logAnalyticsEvent) {
+        window.logAnalyticsEvent('purchase_upgrade', { type: 'magnet', level: playerUpgrades.magnet });
+      }
+      
+      GameAudio.playPowerUpSound();
+      updateHangarUI();
+      document.getElementById('shop-scrap').innerText = `⚙️ ${scrapCredits}`;
+    }
+  });
+
   // Hangar launch launch
   document.getElementById('btn-shop-launch').addEventListener('click', () => {
     exitHangarAndLaunch();
@@ -3915,6 +4092,89 @@ window.addEventListener('load', () => {
     } else {
       container.classList.remove('crt-bezel-active');
     }
+  }
+
+  // --- All-Ages Expansion UI Listeners ---
+
+  // 1. Difficulty Selector setup
+  const diffBtns = document.querySelectorAll('.diff-btn');
+  diffBtns.forEach(btn => {
+    btn.addEventListener('click', e => {
+      diffBtns.forEach(b => b.classList.remove('active'));
+      e.target.classList.add('active');
+      selectedDifficulty = e.target.getAttribute('data-diff');
+      
+      GameAudio.playPowerUpSound();
+      
+      if (window.logAnalyticsEvent) {
+        window.logAnalyticsEvent('select_difficulty', { difficulty: selectedDifficulty });
+      }
+    });
+  });
+
+  // 2. Skin / Paint Selector setup
+  const paintBtns = document.querySelectorAll('.paint-btn');
+  paintBtns.forEach(btn => {
+    btn.addEventListener('click', e => {
+      paintBtns.forEach(b => b.classList.remove('active'));
+      e.target.classList.add('active');
+      selectedSkin = e.target.getAttribute('data-skin');
+      
+      GameAudio.playPowerUpSound();
+      
+      if (window.logAnalyticsEvent) {
+        window.logAnalyticsEvent('select_skin', { skin: selectedSkin });
+      }
+    });
+  });
+
+  // 3. Cheat Code Console Wires
+  const btnSubmitCheat = document.getElementById('btn-submit-cheat');
+  const cheatInput = document.getElementById('cheat-input');
+  const cheatMsg = document.getElementById('cheat-msg');
+  
+  function applyCheat() {
+    const code = cheatInput.value.trim().toLowerCase();
+    if (!code) return;
+    
+    if (code === 'saucer') {
+      selectedSkin = 'saucer';
+      paintBtns.forEach(b => b.classList.remove('active'));
+      cheatMsg.style.color = 'var(--neon-cyan)';
+      cheatMsg.innerText = 'CODENAME: UFO SAUCER ACTIVATED!';
+      GameAudio.playPowerUpSound();
+    } else if (code === 'rainbow') {
+      cheatRainbow = true;
+      cheatMsg.style.color = 'var(--neon-cyan)';
+      cheatMsg.innerText = 'CODENAME: RAINBOW WEAPONS ACTIVE!';
+      GameAudio.playPowerUpSound();
+    } else if (code === 'god') {
+      cheatGod = true;
+      cheatMsg.style.color = 'var(--neon-cyan)';
+      cheatMsg.innerText = 'CODENAME: NEON GOD SHIELD ONLINE!';
+      GameAudio.playPowerUpSound();
+    } else if (code === 'matrix') {
+      cheatMatrix = true;
+      cheatMsg.style.color = 'var(--neon-cyan)';
+      cheatMsg.innerText = 'CODENAME: SYSTEM CODE OVERRIDE!';
+      GameAudio.playPowerUpSound();
+    } else {
+      cheatMsg.style.color = 'var(--neon-red)';
+      cheatMsg.innerText = 'ERROR: INVALID ACCESS CODE';
+      GameAudio.playExplosionSound(0.5);
+    }
+    cheatInput.value = '';
+  }
+  
+  if (btnSubmitCheat && cheatInput) {
+    btnSubmitCheat.addEventListener('click', () => {
+      applyCheat();
+    });
+    cheatInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        applyCheat();
+      }
+    });
   }
 
   requestAnimationFrame(gameTick);

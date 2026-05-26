@@ -80,6 +80,15 @@
           <p class="subtitle select-none">CYBERNETIC DEFENDER // VER 1.5.0</p>
         </div>
 
+        <div style="margin-bottom: 1.5rem; display: flex; flex-direction: column; align-items: center; gap: 0.5rem; width: 100%;">
+          <span class="font-mono select-none" style="color: var(--neon-cyan); letter-spacing: 0.15em; font-size: 0.8rem;">TACTICAL SYSTEM PROTOCOL</span>
+          <div class="difficulty-selector">
+            <button id="diff-cadet" class="diff-btn select-none" data-diff="cadet">CADET</button>
+            <button id="diff-hero" class="diff-btn active select-none" data-diff="hero">HERO</button>
+            <button id="diff-elite" class="diff-btn select-none" data-diff="elite">ELITE</button>
+          </div>
+        </div>
+
         <div class="menu-actions">
           <button id="btn-start" class="btn btn-primary select-none">INITIATE GAME</button>
           <button id="btn-settings" class="btn btn-secondary select-none">SYSTEM PARAMETERS</button>
@@ -140,6 +149,15 @@
               <input type="checkbox" id="toggle-bezel" checked>
               <span class="slider round"></span>
             </label>
+          </div>
+
+          <div class="setting-item" style="border-top: 1px solid rgba(255, 255, 255, 0.1); padding-top: 1rem; margin-top: 1rem; flex-direction: column; align-items: stretch; gap: 0.5rem;">
+            <label for="cheat-input" style="font-size: 0.85rem; color: var(--neon-magenta); align-self: center;">ENTER RETRO SECRET CODE</label>
+            <div style="display: flex; gap: 0.5rem; justify-content: center; width: 100%;">
+              <input type="text" id="cheat-input" placeholder="e.g. SAUCER" style="background: #000; border: 1.5px solid var(--neon-magenta); color: var(--neon-yellow); font-family: 'Orbitron', sans-serif; font-weight: 900; font-size: 0.95rem; text-align: center; width: 160px; outline: none; border-radius: 4px; padding: 0.35rem 0; letter-spacing: 0.05em;">
+              <button id="btn-submit-cheat" class="btn btn-primary" style="margin: 0; padding: 0.35rem 1rem; font-size: 0.85rem; min-width: auto; height: auto;">APPLY</button>
+            </div>
+            <span id="cheat-msg" class="font-mono text-center text-xs" style="color: var(--neon-cyan); height: 16px; margin-top: 0.2rem; display: block;"></span>
           </div>
         </div>
 
@@ -250,6 +268,30 @@
               <span class="shop-lvl" id="lvl-emp">LOCKED</span>
             </div>
             <button id="btn-buy-emp" class="btn-shop">UNLOCK</button>
+          </div>
+
+          <div class="shop-card" id="shop-card-magnet">
+            <div class="shop-icon">🧲</div>
+            <h3>SCRAP MAGNET</h3>
+            <p>Kinetic nano-attractor pulls green scrap credits automatically from a distance.</p>
+            <div class="shop-row-status">
+              <span class="shop-price" id="price-magnet">⚙️ 250</span>
+              <span class="shop-lvl" id="lvl-magnet">LOCKED</span>
+            </div>
+            <button id="btn-buy-magnet" class="btn-shop">UNLOCK</button>
+          </div>
+        </div>
+
+        <!-- Hangar Paint Customizer Panel -->
+        <div class="paint-shop-panel">
+          <span class="font-mono select-none" style="color: var(--neon-magenta); letter-spacing: 0.12em; font-size: 0.85rem;">HANGAR COSMETIC CUSTOMIZER</span>
+          <h3>NEON FIGHTER SKINS</h3>
+          <div class="paint-options">
+            <button class="paint-btn active" data-skin="default" style="--skin-color: #00f0ff;">CYBER CYAN</button>
+            <button class="paint-btn" data-skin="toxic" style="--skin-color: #39ff14;">TOXIC ACID</button>
+            <button class="paint-btn" data-skin="solar" style="--skin-color: #ffea00;">SOLAR FLARE</button>
+            <button class="paint-btn" data-skin="void" style="--skin-color: #bd00ff;">VOID DUST</button>
+            <button class="paint-btn" data-skin="rainbow" style="--skin-color: #ff00aa;">GLITCH RAINBOW</button>
           </div>
         </div>
 
