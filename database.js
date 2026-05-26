@@ -72,7 +72,7 @@ window.saveGlobalHighScore = async function(name, score) {
   
   try {
     await addDoc(collection(db, "leaderboard"), {
-      name: name.toUpperCase().slice(0, 3),
+      name: name.toUpperCase().slice(0, 12),
       score: parseInt(score) || 0,
       timestamp: serverTimestamp()
     });

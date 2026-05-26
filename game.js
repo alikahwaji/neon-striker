@@ -278,7 +278,7 @@ function getLeaderboard() {
 function saveHighScore(name, scoreVal) {
   // Always save locally first as double-redundancy safety net
   const board = getLeaderboard();
-  board.push({ name: name.toUpperCase().slice(0, 3), score: scoreVal });
+  board.push({ name: name.toUpperCase().slice(0, 12), score: scoreVal });
   const sorted = board.sort((a, b) => b.score - a.score).slice(0, 8);
   localStorage.setItem('neon_striker_high_scores', JSON.stringify(sorted));
 
