@@ -356,6 +356,7 @@ class PlayerShip {
     this.x = CONFIG.width / 2 - this.width / 2;
     this.y = CONFIG.height - 80;
     this.vx = 0;
+    this.vy = 0;
     this.lastShotTime = 0;
     this.invulnFrames = 0;
   }
@@ -368,14 +369,24 @@ class PlayerShip {
     if (keys['ArrowRight'] || keys['KeyD']) {
       this.vx += CONFIG.playerSpeed * 0.15;
     }
+    if (keys['ArrowUp'] || keys['KeyW']) {
+      this.vy -= CONFIG.playerSpeed * 0.15;
+    }
+    if (keys['ArrowDown'] || keys['KeyS']) {
+      this.vy += CONFIG.playerSpeed * 0.15;
+    }
 
     // Apply smooth inertia friction
     this.vx *= CONFIG.playerFriction;
     this.x += this.vx;
+    this.vy *= CONFIG.playerFriction;
+    this.y += this.vy;
 
     // Apply level specific physical constraint borders
     let minX = 15;
     let maxX = CONFIG.width - this.width - 15;
+    let minY = 260; // Allow forward flying up to the horizon line
+    let maxY = CONFIG.height - this.height - 15;
     
     const lvlData = LEVEL_DATABASE[currentLevel] || {};
     if (lvlData.trenchWalls) {
@@ -392,6 +403,14 @@ class PlayerShip {
     if (this.x > maxX) {
       this.x = maxX;
       this.vx = 0;
+    }
+    if (this.y < minY) {
+      this.y = minY;
+      this.vy = 0;
+    }
+    if (this.y > maxY) {
+      this.y = maxY;
+      this.vy = 0;
     }
 
     // Interstellar Black Hole gravity pull towards center (400px X coordinate)
@@ -2548,7 +2567,9 @@ function loadAndStartLevel() {
   // Reset player position
   if (player) {
     player.x = CONFIG.width / 2 - player.width / 2;
+    player.y = CONFIG.height - 80;
     player.vx = 0;
+    player.vy = 0;
   }
 
   // Display Level Intro screen
@@ -3633,7 +3654,9 @@ window.addEventListener('load', () => {
   canvas.height = CONFIG.height;
 
   window.addEventListener('keydown', e => {
-    if (e.code === 'Space') e.preventDefault();
+    if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
+      e.preventDefault();
+    }
     keys[e.code] = true;
 
     if (e.code === 'KeyP') {
