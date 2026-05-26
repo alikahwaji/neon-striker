@@ -838,8 +838,8 @@ input[type=range]::-webkit-slider-thumb:hover {
   font-weight: 900;
   font-size: 1.3rem;
   text-align: center;
-  width: 90px;
-  letter-spacing: 0.2em;
+  width: 220px;
+  letter-spacing: 0.1em;
   outline: none;
   text-transform: uppercase;
   border-radius: 4px;
