@@ -385,7 +385,7 @@ class PlayerShip {
     // Apply level specific physical constraint borders
     let minX = 15;
     let maxX = CONFIG.width - this.width - 15;
-    let minY = 260; // Allow forward flying up to the horizon line
+    let minY = 220; // Stop exactly at the horizontal horizon line
     let maxY = CONFIG.height - this.height - 15;
     
     const lvlData = LEVEL_DATABASE[currentLevel] || {};
@@ -1077,7 +1077,7 @@ class Enemy {
         if (dist > 20) {
           const pullStrength = 0.08 * mult;
           player.vx += (dx / dist) * pullStrength;
-          if (player.y > 280) {
+          if (player.y > 220) {
             player.y += (dy / dist) * pullStrength * 1.5;
           }
         }
