@@ -315,7 +315,9 @@ body {
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   padding-top: 0.75rem;
   width: 100%;
-  max-width: 500px;
+  /* Widened from 500px so the horizontal .controls-grid can fit all four
+     control items on one or two rows without wrapping into more. */
+  max-width: 680px;
   text-align: center;
 }
 
@@ -327,15 +329,38 @@ body {
   margin-bottom: 0.6rem;
 }
 
+/* Horizontal layout: each .control-item is a flex block (key chip + label),
+   and the outer grid is a flex row that wraps when there isn't enough width.
+   With the four current control items, this fits on one row at desktop
+   widths (~1024px canvas) and gracefully wraps to two rows on narrow
+   viewports — no more vertical-per-key explosion. */
 .controls-grid {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  row-gap: 0.35rem; /* was 0.5rem — denser without feeling cramped */
-  column-gap: 1.5rem;
-  font-size: 0.85rem;
-  text-align: left;
-  max-width: 400px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem 1.25rem;
+  font-size: 0.8rem;
+  max-width: 100%;
   margin: 0 auto;
+}
+
+.control-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.control-item .keys {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.key-sep {
+  color: #6a6680;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.75rem;
+  padding: 0 0.1rem;
 }
 
 .key {
@@ -347,12 +372,13 @@ body {
   background: rgba(0, 240, 255, 0.1);
   font-family: 'Share Tech Mono', monospace;
   text-align: center;
+  line-height: 1.2;
 }
 
 .action {
   color: #b0aebf;
-  display: flex;
-  align-items: center;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
 }
 
 /* ----------------------------------------------------
