@@ -70,14 +70,11 @@ async function updateLeaderboardUI() {
       if (globalScores && globalScores.length > 0) {
         body.innerHTML = '';
         globalScores.forEach((record, index) => {
-          const rankClass = index === 0 ? 'rank-1' : index === 1 ? 'rank-2' : index === 2 ? 'rank-3' : '';
-          body.innerHTML += `
-            <tr>
-              <td class="${rankClass}">#${index + 1}</td>
-              <td class="${rankClass}">🌐 ${record.name}</td>
-              <td class="text-right ${rankClass}">${parseInt(record.score).toLocaleString()}</td>
-            </tr>
-          `;
+          // Globe prefix marks scores fetched from the public Firestore.
+          // Firestore writes are unauthenticated, so record.name is hostile
+          // by default — render every field via textContent, never template
+          // interpolation into innerHTML, to neutralise stored XSS payloads.
+          renderLeaderboardRow(body, index, `🌐 ${record.name}`, parseInt(record.score, 10) || 0);
         });
         return; // Success! We successfully rendered global scores.
       }
@@ -85,20 +82,35 @@ async function updateLeaderboardUI() {
       console.warn("Failed to load Firebase scores, falling back to browser archives:", e);
     }
   }
-  
+
   // Local Backup Fallback
   const board = getLeaderboard();
   body.innerHTML = '';
   board.forEach((record, index) => {
-    const rankClass = index === 0 ? 'rank-1' : index === 1 ? 'rank-2' : index === 2 ? 'rank-3' : '';
-    body.innerHTML += `
-      <tr>
-        <td class="${rankClass}">#${index + 1}</td>
-        <td class="${rankClass}">${record.name}</td>
-        <td class="text-right ${rankClass}">${record.score.toLocaleString()}</td>
-      </tr>
-    `;
+    renderLeaderboardRow(body, index, record.name, record.score);
   });
+}
+
+// Build a single leaderboard row via DOM APIs so untrusted name strings
+// (especially from the open Firestore collection) cannot inject markup.
+function renderLeaderboardRow(tbody, index, name, score) {
+  const rankClass = index === 0 ? 'rank-1' : index === 1 ? 'rank-2' : index === 2 ? 'rank-3' : '';
+  const tr = document.createElement('tr');
+
+  const rankTd = document.createElement('td');
+  if (rankClass) rankTd.className = rankClass;
+  rankTd.textContent = `#${index + 1}`;
+
+  const nameTd = document.createElement('td');
+  if (rankClass) nameTd.className = rankClass;
+  nameTd.textContent = name;
+
+  const scoreTd = document.createElement('td');
+  scoreTd.className = ('text-right ' + rankClass).trim();
+  scoreTd.textContent = (Number(score) || 0).toLocaleString();
+
+  tr.append(rankTd, nameTd, scoreTd);
+  tbody.appendChild(tr);
 }
 
 /* ----------------------------------------------------

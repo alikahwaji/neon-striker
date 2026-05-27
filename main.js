@@ -556,6 +556,7 @@ function startGame() {
   playerUpgrades.homing = 0;
   playerUpgrades.wingman = 0;
   playerUpgrades.emp = 0;
+  playerUpgrades.magnet = 0; // Reset with the rest so Cadet/Elite runs start clean
 
   CONFIG.playerSpeed = CONFIG.playerSpeedBase;
   CONFIG.laserCooldown = CONFIG.laserCooldownBase;
