@@ -116,13 +116,14 @@ body {
 }
 
 /* ----------------------------------------------------
-   NEON SIDE DECORATIONS — pillarbox margin embellishments
+   NEON RAIN — pillarbox margin decoration
    ----------------------------------------------------
-   On widescreen viewports the 4:3 game container leaves vertical
-   black pillarbox bars on either side. These pure-CSS embellishments
-   (vertical neon bars, rotating diamonds, horizontal stripes) fill
-   that dead space with on-brand synthwave decor. Hidden via media
-   query whenever the viewport is too narrow to support a pillarbox. */
+   The 4:3 game container leaves vertical black pillarbox bars on
+   widescreen viewports. Each bar hosts a column of multi-coloured
+   neon 'rain drops' continuously cascading from top to bottom.
+   Pure CSS, no image assets, GPU-animated (transform + opacity
+   only, no layout thrash). Hidden via media query on viewports
+   too narrow for pillarbox bars. */
 .neon-side-decor {
   position: fixed;
   top: 0;
@@ -134,98 +135,59 @@ body {
 }
 
 .side-left { left: 0; }
-.side-right { right: 0; transform: scaleX(-1); }
+.side-right { right: 0; }
 
-/* Vertical glowing bar — the spine of each decoration cluster. */
-.neon-bar {
+/* A single rain drop — a tall thin gradient streak with a bright head.
+   Uses currentColor so the colour variant classes only need to set
+   `color` once and the background gradient + drop-shadow inherit it. */
+.neon-drop {
   position: absolute;
-  top: 12vh;
-  bottom: 12vh;
-  left: 50%;
-  width: 2px;
+  top: -15%;
+  width: 3px;
+  height: 70px;
+  border-radius: 3px;
+  /* Bright white head fading into the neon trail, then to transparent.
+     Drop-shadow gives the soft halo without needing a separate element. */
   background: linear-gradient(
     to bottom,
     transparent 0%,
-    var(--neon-magenta) 25%,
-    var(--neon-blue) 75%,
-    transparent 100%
+    currentColor 35%,
+    rgba(255, 255, 255, 0.95) 92%,
+    rgba(255, 255, 255, 0.6) 100%
   );
-  box-shadow: 0 0 14px rgba(255, 0, 170, 0.55),
-              0 0 28px rgba(0, 240, 255, 0.35);
-  animation: neon-bar-pulse 3.5s ease-in-out infinite alternate;
+  filter: drop-shadow(0 0 6px currentColor) drop-shadow(0 0 12px currentColor);
+  /* CSS custom props with defaults — overridden by the .n1..n8
+     positioning classes for staggered fall behaviour. */
+  animation: neon-drop-fall var(--fall, 3.5s) linear var(--delay, 0s) infinite;
 }
 
-/* Rotating diamond shapes positioned at three heights along the bar. */
-.neon-diamond {
-  position: absolute;
-  left: 50%;
-  width: 28px;
-  height: 28px;
-  margin-left: -14px;
-  border: 2px solid var(--neon-blue);
-  background: rgba(0, 240, 255, 0.06);
-  box-shadow: 0 0 14px var(--neon-blue),
-              inset 0 0 8px rgba(0, 240, 255, 0.4);
-  transform: rotate(45deg);
-  animation: neon-diamond-spin 8s linear infinite;
-}
+/* Colour variants — currentColor drives both the gradient and the glow. */
+.d-magenta { color: var(--neon-magenta); }
+.d-cyan    { color: var(--neon-blue); /* alias — --neon-blue == --neon-cyan */ }
+.d-yellow  { color: var(--neon-yellow); }
+.d-green   { color: var(--neon-green); }
+.d-purple  { color: var(--neon-purple); }
 
-.neon-diamond.d-top {
-  top: 22%;
-  border-color: var(--neon-magenta);
-  box-shadow: 0 0 14px var(--neon-magenta),
-              inset 0 0 8px rgba(255, 0, 170, 0.4);
-}
+/* Per-drop X position + fall duration + start delay. 8 drops per side
+   spread across the 170 px column, with varied durations (2.4–5.4 s)
+   and offset start times so the cascade feels organic rather than
+   marching in lockstep. */
+.neon-drop.n1 { left: 14%; --fall: 3.2s; --delay: 0s; }
+.neon-drop.n2 { left: 28%; --fall: 4.6s; --delay: 0.7s; }
+.neon-drop.n3 { left: 44%; --fall: 2.8s; --delay: 1.4s; }
+.neon-drop.n4 { left: 58%; --fall: 3.9s; --delay: 0.2s; }
+.neon-drop.n5 { left: 74%; --fall: 5.1s; --delay: 2.1s; }
+.neon-drop.n6 { left: 22%; --fall: 4.2s; --delay: 1.8s; }
+.neon-drop.n7 { left: 52%; --fall: 2.4s; --delay: 2.9s; }
+.neon-drop.n8 { left: 68%; --fall: 4.8s; --delay: 0.4s; }
 
-.neon-diamond.d-mid {
-  top: 48%;
-  width: 36px;
-  height: 36px;
-  margin-left: -18px;
-  border-color: var(--neon-yellow);
-  box-shadow: 0 0 16px var(--neon-yellow),
-              inset 0 0 10px rgba(255, 234, 0, 0.4);
-  animation-duration: 11s;
-  animation-direction: reverse;
-}
-
-.neon-diamond.d-bot {
-  bottom: 22%;
-  border-color: var(--neon-green);
-  box-shadow: 0 0 14px var(--neon-green),
-              inset 0 0 8px rgba(57, 255, 20, 0.4);
-  animation-duration: 9s;
-}
-
-/* Horizontal stripes — bookend the cluster top and bottom. */
-.neon-stripe {
-  position: absolute;
-  left: 20%;
-  right: 20%;
-  height: 2px;
-  background: linear-gradient(to right, transparent, var(--neon-purple), transparent);
-  box-shadow: 0 0 8px var(--neon-purple);
-}
-
-.neon-stripe.s-top { top: 9vh; }
-.neon-stripe.s-bot { bottom: 9vh; }
-
-@keyframes neon-bar-pulse {
-  from {
-    opacity: 0.55;
-    box-shadow: 0 0 8px rgba(255, 0, 170, 0.4),
-                0 0 18px rgba(0, 240, 255, 0.25);
-  }
-  to {
-    opacity: 1;
-    box-shadow: 0 0 18px rgba(255, 0, 170, 0.7),
-                0 0 36px rgba(0, 240, 255, 0.5);
-  }
-}
-
-@keyframes neon-diamond-spin {
-  from { transform: rotate(45deg); }
-  to { transform: rotate(405deg); }
+/* The fall animation — pure transform so it stays on the compositor.
+   Fade-in at the top + fade-out near the bottom so drops don't pop in/out. */
+@keyframes neon-drop-fall {
+  0%   { transform: translateY(0);     opacity: 0; }
+  8%   {                                opacity: 1; }
+  92%  {                                opacity: 1; }
+  100% { transform: translateY(115vh); opacity: 0; }
 }
 
 /* Hide the decorations when the viewport isn't wide enough to host a

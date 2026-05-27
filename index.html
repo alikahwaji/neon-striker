@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <!-- Load retro modern and high-tech typography -->
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Press+Start+2P&family=Share+Tech+Mono&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=5">
+  <link rel="stylesheet" href="styles.css?v=6">
 </head>
 <body>
 
@@ -20,27 +20,31 @@
     <div class="scanlines"></div>
     <div class="crt-glare"></div>
 
-    <!-- Neon Side Decorations — only visible on viewports wider than the
-         4:3 game container (i.e. when pillarbox bars are present). Pure
-         CSS, no image assets. Each side has:
-           * a vertical glowing line that pulses slowly
-           * three rotating diamond shapes at different heights
-           * a horizontal stripe near the top + bottom -->
+    <!-- Neon Rain Side Decorations — multi-coloured drops continuously
+         cascading from top to bottom of each pillarbox margin. Pure CSS,
+         no image assets, GPU-animated. 8 drops per side at varied X
+         offsets, fall speeds (2.4s..5.4s) and start delays so the
+         cascade feels organic rather than mechanical. Hidden via media
+         query on viewports too narrow for pillarbox bars. -->
     <div class="neon-side-decor side-left" aria-hidden="true">
-      <div class="neon-bar"></div>
-      <div class="neon-diamond d-top"></div>
-      <div class="neon-diamond d-mid"></div>
-      <div class="neon-diamond d-bot"></div>
-      <div class="neon-stripe s-top"></div>
-      <div class="neon-stripe s-bot"></div>
+      <span class="neon-drop d-magenta n1"></span>
+      <span class="neon-drop d-cyan    n2"></span>
+      <span class="neon-drop d-yellow  n3"></span>
+      <span class="neon-drop d-green   n4"></span>
+      <span class="neon-drop d-purple  n5"></span>
+      <span class="neon-drop d-magenta n6"></span>
+      <span class="neon-drop d-cyan    n7"></span>
+      <span class="neon-drop d-yellow  n8"></span>
     </div>
     <div class="neon-side-decor side-right" aria-hidden="true">
-      <div class="neon-bar"></div>
-      <div class="neon-diamond d-top"></div>
-      <div class="neon-diamond d-mid"></div>
-      <div class="neon-diamond d-bot"></div>
-      <div class="neon-stripe s-top"></div>
-      <div class="neon-stripe s-bot"></div>
+      <span class="neon-drop d-cyan    n1"></span>
+      <span class="neon-drop d-magenta n2"></span>
+      <span class="neon-drop d-green   n3"></span>
+      <span class="neon-drop d-yellow  n4"></span>
+      <span class="neon-drop d-purple  n5"></span>
+      <span class="neon-drop d-cyan    n6"></span>
+      <span class="neon-drop d-magenta n7"></span>
+      <span class="neon-drop d-green   n8"></span>
     </div>
 
     <!-- Quick-mute (M) indicator — shown only while audio is muted -->
