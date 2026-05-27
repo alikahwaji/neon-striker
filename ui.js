@@ -386,6 +386,17 @@ window.addEventListener('load', () => {
     continueGame();
   });
 
+  document.getElementById('btn-share').addEventListener('click', () => {
+    const pilotName = (document.getElementById('pilot-name') && document.getElementById('pilot-name').value.trim()) || 'ACE';
+    generateShareImage({
+      name: pilotName,
+      score,
+      level: currentLevel,
+      mode: bossRushMode ? 'BOSS RUSH' : dailyMode ? 'DAILY' : 'CAMPAIGN',
+      difficulty: selectedDifficulty.toUpperCase()
+    });
+  });
+
   document.getElementById('btn-main-menu').addEventListener('click', () => {
     // Returning to the main menu always exits any special mode, so the
     // next INITIATE GAME starts a normal campaign with real RNG.
@@ -742,6 +753,148 @@ window.addEventListener('load', () => {
 
   requestAnimationFrame(gameTick);
 });
+
+/* ----------------------------------------------------
+   SHARE SCORE → PNG
+   ----------------------------------------------------
+   Compose a synthwave-styled score card on an off-screen canvas, then
+   trigger a download. No external image assets — everything is drawn
+   procedurally to match the in-game CRT aesthetic.
+*/
+function generateShareImage({ name, score, level, mode, difficulty }) {
+  const W = 1200, H = 630; // social-share-friendly 1.9:1 ratio (Twitter/OG)
+  const cv = document.createElement('canvas');
+  cv.width = W; cv.height = H;
+  const c = cv.getContext('2d');
+
+  // Background — vertical gradient matching the game's synthwave palette.
+  const bg = c.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, '#03010b');
+  bg.addColorStop(0.55, '#1a0532');
+  bg.addColorStop(1, '#06010f');
+  c.fillStyle = bg;
+  c.fillRect(0, 0, W, H);
+
+  // Horizon line + perspective grid floor (the iconic synthwave look).
+  const horizonY = Math.floor(H * 0.55);
+  // Star field above horizon.
+  for (let i = 0; i < 80; i++) {
+    c.fillStyle = Math.random() > 0.5 ? '#ff00aa' : '#00f0ff';
+    c.globalAlpha = Math.random() * 0.8 + 0.2;
+    const sx = Math.random() * W;
+    const sy = Math.random() * horizonY;
+    c.fillRect(sx, sy, Math.random() * 2 + 1, Math.random() * 2 + 1);
+  }
+  c.globalAlpha = 1;
+
+  // Magenta horizon line.
+  c.fillStyle = '#ff00aa';
+  c.shadowColor = '#ff00aa';
+  c.shadowBlur = 18;
+  c.fillRect(0, horizonY, W, 3);
+
+  // Perspective grid below horizon — converging verticals + scrolling horizontals.
+  c.shadowBlur = 0;
+  c.strokeStyle = 'rgba(255, 0, 170, 0.35)';
+  c.lineWidth = 1.5;
+  const cx = W / 2;
+  for (let i = -16; i <= 16; i++) {
+    c.beginPath();
+    c.moveTo(cx + i * 4, horizonY);
+    c.lineTo(cx + i * 120, H);
+    c.stroke();
+  }
+  c.strokeStyle = 'rgba(0, 240, 255, 0.25)';
+  for (let y = 0; y < 12; y++) {
+    const py = Math.pow(y / 12, 2.4) * (H - horizonY) + horizonY;
+    c.beginPath();
+    c.moveTo(0, py);
+    c.lineTo(W, py);
+    c.stroke();
+  }
+
+  // Brand title — big skewed Orbitron-style block.
+  c.save();
+  c.translate(W / 2, 110);
+  c.transform(1, 0, -0.08, 1, 0, 0); // 5deg skew
+  c.font = '900 84px Orbitron, sans-serif';
+  c.textAlign = 'center';
+  c.fillStyle = '#fff';
+  c.shadowColor = '#ff00aa';
+  c.shadowBlur = 24;
+  c.fillText('NEON STRIKER', 0, 0);
+  c.restore();
+
+  // Subtitle bar.
+  c.font = '600 22px "Share Tech Mono", monospace';
+  c.fillStyle = '#00f0ff';
+  c.shadowColor = '#00f0ff';
+  c.shadowBlur = 8;
+  c.letterSpacing = '6px';
+  c.fillText(`${mode} // ${difficulty} PILOT`, W / 2, 160);
+
+  // Pilot codename — central headline.
+  c.shadowBlur = 0;
+  c.font = '900 56px Orbitron, sans-serif';
+  c.fillStyle = '#ffea00';
+  c.shadowColor = '#ffea00';
+  c.shadowBlur = 18;
+  c.fillText(`👨‍🚀 ${name}`, W / 2, 270);
+
+  // Score — the hero number.
+  c.shadowBlur = 0;
+  c.font = '600 26px "Share Tech Mono", monospace';
+  c.fillStyle = '#b0aebf';
+  c.fillText('FINAL SCORE', W / 2, 330);
+
+  c.font = '900 110px Orbitron, sans-serif';
+  c.fillStyle = '#00f0ff';
+  c.shadowColor = '#00f0ff';
+  c.shadowBlur = 30;
+  c.fillText(String(score).padStart(6, '0'), W / 2, 440);
+
+  // Sector reached — secondary stat.
+  c.shadowBlur = 0;
+  c.font = '600 22px "Share Tech Mono", monospace';
+  c.fillStyle = '#b0aebf';
+  c.fillText(`SECTOR ${level}`, W / 2, 490);
+
+  // Bottom CTA + brand URL.
+  c.font = '600 16px "Share Tech Mono", monospace';
+  c.fillStyle = 'rgba(255, 255, 255, 0.55)';
+  c.fillText('alikahwaji.github.io/neon-striker', W / 2, H - 38);
+
+  // Outer neon-purple frame so the image reads as a 'CRT screenshot'.
+  c.shadowBlur = 0;
+  c.strokeStyle = 'rgba(139, 0, 255, 0.6)';
+  c.lineWidth = 4;
+  c.strokeRect(8, 8, W - 16, H - 16);
+
+  // Trigger download — synthesise a temporary anchor with the data URL.
+  cv.toBlob(blob => {
+    if (!blob) return;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const safeName = name.replace(/[^A-Z0-9]/gi, '_').slice(0, 12) || 'PILOT';
+    a.href = url;
+    a.download = `neon-striker-${safeName}-${score}.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }, 'image/png');
+
+  // Confirmation toast on the existing achievement-toast element so the
+  // player knows the download fired.
+  const toast = document.getElementById('achievement-toast');
+  if (toast) {
+    document.getElementById('ach-toast-icon').textContent = '📸';
+    document.getElementById('ach-toast-name').textContent = 'SCORE CARD DOWNLOADED';
+    toast.classList.remove('hidden');
+    if (achToastTimer) clearTimeout(achToastTimer);
+    achToastTimer = setTimeout(() => { toast.classList.add('hidden'); achToastTimer = null; }, 2500);
+  }
+}
 
 /* ----------------------------------------------------
    KONAMI CODE — DEATH BLOSSOM unlock
