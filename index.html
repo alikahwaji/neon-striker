@@ -20,6 +20,15 @@
     <div class="scanlines"></div>
     <div class="crt-glare"></div>
 
+    <!-- Quick-mute (M) indicator — shown only while audio is muted -->
+    <div id="mute-indicator" class="mute-indicator hidden">🔇 MUTED</div>
+
+    <!-- First-session pause-hint toast — appears once on the player's
+         first ever gameplay frame, auto-hides after 4s or on first P press -->
+    <div id="pause-hint-toast" class="pause-hint-toast hidden">
+      <span class="key">P</span> to pause
+    </div>
+
     <!-- Active Game Container -->
     <div id="game-container" class="game-container">
       

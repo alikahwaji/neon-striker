@@ -17,7 +17,11 @@ class SynthAudioEngine {
     // Volumes from 0.0 to 1.0
     this.musicVolume = 0.5;
     this.sfxVolume = 0.7;
-    
+    // Quick-mute state — when true, master gains are forced to 0 regardless
+    // of musicVolume / sfxVolume so the player can silence the game with M
+    // without losing their slider positions.
+    this.muted = false;
+
     // BGM Sequencer state
     this.bgmInterval = null;
     this.bgmTempo = 110; // BPM
@@ -155,16 +159,36 @@ class SynthAudioEngine {
 
   setMusicVolume(volumePercentage) {
     this.musicVolume = volumePercentage / 100;
-    if (this.masterMusicGain && this.ctx) {
+    if (this.masterMusicGain && this.ctx && !this.muted) {
       this.masterMusicGain.gain.setTargetAtTime(this.musicVolume, this.ctx.currentTime, 0.05);
     }
   }
 
   setSfxVolume(volumePercentage) {
     this.sfxVolume = volumePercentage / 100;
-    if (this.masterSfxGain && this.ctx) {
+    if (this.masterSfxGain && this.ctx && !this.muted) {
       this.masterSfxGain.gain.setTargetAtTime(this.sfxVolume, this.ctx.currentTime, 0.05);
     }
+  }
+
+  /**
+   * Flip the global mute state. Slider positions are preserved so unmute
+   * restores the same volume the player picked. Returns the new muted
+   * state so the caller (ui.js) can update the visual indicator.
+   */
+  toggleMute() {
+    this.muted = !this.muted;
+    if (this.ctx) {
+      const target = this.muted ? 0 : this.musicVolume;
+      const sfxTarget = this.muted ? 0 : this.sfxVolume;
+      if (this.masterMusicGain) {
+        this.masterMusicGain.gain.setTargetAtTime(target, this.ctx.currentTime, 0.02);
+      }
+      if (this.masterSfxGain) {
+        this.masterSfxGain.gain.setTargetAtTime(sfxTarget, this.ctx.currentTime, 0.02);
+      }
+    }
+    return this.muted;
   }
 
   resume() {
@@ -379,6 +403,66 @@ class SynthAudioEngine {
       osc.start(now);
       osc.stop(now + 1.5 + (i * 0.15));
     });
+  }
+
+  /**
+   * Short pulsing low-pitch beep, intended for repeating heartbeat-style
+   * warning when player health is critical. Caller is responsible for the
+   * cadence (e.g. one call every ~1.2 s while health < threshold) so the
+   * audio engine doesn't have to track game state.
+   */
+  playCriticalHealthBeep() {
+    if (!this.ctx) return;
+    this.resume();
+
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'square';
+    osc.connect(gain);
+    gain.connect(this.masterSfxGain);
+
+    const now = this.ctx.currentTime;
+    const duration = 0.18;
+
+    // Two short pulses (heartbeat) — first deeper, second slightly higher.
+    osc.frequency.setValueAtTime(180, now);
+    osc.frequency.setValueAtTime(240, now + duration * 0.55);
+
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(0.22, now + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+    osc.start(now);
+    osc.stop(now + duration + 0.02);
+  }
+
+  /**
+   * One-shot descending alarm when the SHIELD power-up absorbs a hit
+   * and depletes — distinct from playPowerUpSound() (the pickup chime)
+   * so the player can tell shield dropped vs. shield picked up by ear.
+   */
+  playShieldDownAlarm() {
+    if (!this.ctx) return;
+    this.resume();
+
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.connect(gain);
+    gain.connect(this.masterSfxGain);
+
+    const now = this.ctx.currentTime;
+    const duration = 0.32;
+
+    // Falling sweep evokes 'shield collapse'.
+    osc.frequency.setValueAtTime(620, now);
+    osc.frequency.exponentialRampToValueAtTime(140, now + duration);
+
+    gain.gain.setValueAtTime(0.28, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+    osc.start(now);
+    osc.stop(now + duration + 0.04);
   }
 
   // Massive smart bomb explosion

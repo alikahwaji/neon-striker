@@ -388,7 +388,9 @@ function damagePlayer(amount) {
   if (CONFIG.playerShieldActive()) {
     delete activePowerUps['SHIELD'];
     floatingTexts.push(new FloatingText(player.x + player.width / 2, player.y - 15, 'SHIELD ABSORBED', '#ff00aa'));
-    GameAudio.playPowerUpSound();
+    // Distinct alarm vs playPowerUpSound() (the pickup chime) so the
+    // player can tell by ear that the shield dropped rather than picked up.
+    GameAudio.playShieldDownAlarm();
     player.invulnFrames = 30;
     return;
   }
