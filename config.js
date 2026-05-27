@@ -42,6 +42,22 @@ let cheatRainbow = false;
 let cheatGod = false;
 let cheatMatrix = false;
 
+// Boss Rush mode — fight the four campaign bosses back-to-back with no
+// shop interludes, no continues, single score. bossRushIndex advances
+// through BOSS_RUSH_SEQUENCE; when it exceeds the array, the run ends.
+let bossRushMode = false;
+let bossRushIndex = 0;
+const BOSS_RUSH_SEQUENCE = [
+  { title: 'BOSS RUSH 1/4', subtitle: 'DREADNOUGHT CRUISER', theme: 'standard', bossType: 'dreadnought',
+    quote: '⚠️ BOSS RUSH INITIATED ⚠️\nFour titans, no shops, no continues. Survive.' },
+  { title: 'BOSS RUSH 2/4', subtitle: 'THE CYBER COMMANDER', theme: 'trench', bossType: 'cyber_commander',
+    quote: 'Cyber Commander warps in. The flagship\'s orbital bullet hell awaits.' },
+  { title: 'BOSS RUSH 3/4', subtitle: 'ARRAKIS SANDWORM', theme: 'spice', bossType: 'sandworm',
+    quote: 'Serpentine titan rises from the spice orbit. Mind the shield rings.' },
+  { title: 'BOSS RUSH 4/4', subtitle: 'UNICRON THE DEVOURER', theme: 'unicron', bossType: 'unicron',
+    quote: 'Final boss. Survive his phase-2 singularity and the gauntlet is yours.' }
+];
+
 // Daily Challenge globals — when dailyMode is true, Math.random is
 // overridden with a Mulberry32 PRNG seeded by today's UTC date so every
 // player faces the same enemy spawn timings, asteroid drops, and power-up

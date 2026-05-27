@@ -634,6 +634,26 @@ body {
   transform: translateY(1px);
 }
 
+/* Boss Rush button — red accent reads as 'danger / intense mode'. */
+.btn-bossrush {
+  color: var(--neon-red);
+  border-color: var(--neon-red);
+  box-shadow: 0 0 10px rgba(255, 0, 60, 0.25);
+  text-shadow: 0 0 6px var(--neon-red);
+}
+
+.btn-bossrush:hover {
+  background: var(--neon-red);
+  color: #fff;
+  box-shadow: 0 0 25px var(--neon-red);
+  text-shadow: none;
+  transform: translateY(-2px);
+}
+
+.btn-bossrush:active {
+  transform: translateY(1px);
+}
+
 /* Leaderboard scope tabs (All Time / Today's Daily) — sit just below
    the panel title. Active tab highlights with the daily-yellow accent. */
 .leaderboard-tabs {

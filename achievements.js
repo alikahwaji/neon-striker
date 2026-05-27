@@ -125,6 +125,13 @@ const ACHIEVEMENT_DEFS = [
     name: 'Death Blossom',
     description: 'Discover the legendary arcade code.',
     check: (e, p, s) => e === 'konami_entered'
+  },
+  {
+    id: 'gladiator',
+    icon: '🏟',
+    name: 'Gladiator',
+    description: 'Complete Boss Rush — all four bosses, no shop.',
+    check: (e, p, s) => e === 'boss_rush_completed'
   }
 ];
 

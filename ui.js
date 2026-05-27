@@ -294,11 +294,13 @@ window.addEventListener('load', () => {
 
   // UI Button listener hooks
   document.getElementById('btn-start').addEventListener('click', () => {
-    // Clean handoff: if the player came from daily mode and is bouncing
-    // back to the start menu, restore real Math.random and clear flags.
+    // Clean handoff: any prior mode (daily / boss rush) is cleared so the
+    // next INITIATE GAME is a vanilla campaign.
     dailyMode = false;
     dailyDate = null;
     deactivateDailySeed();
+    bossRushMode = false;
+    bossRushIndex = 0;
     startGame();
   });
 
@@ -314,6 +316,17 @@ window.addEventListener('load', () => {
       b.classList.toggle('active', b.getAttribute('data-diff') === 'hero');
     });
     if (window.Achievements) Achievements.notify('daily_started', { date: dailyDate });
+    startGame();
+  });
+
+  document.getElementById('btn-bossrush').addEventListener('click', () => {
+    // Boss Rush: 4 bosses back-to-back, no shop, no continues. Other modes
+    // get cleared so this is a pure gauntlet.
+    bossRushMode = true;
+    bossRushIndex = 0;
+    dailyMode = false;
+    dailyDate = null;
+    deactivateDailySeed();
     startGame();
   });
 
@@ -374,11 +387,13 @@ window.addEventListener('load', () => {
   });
 
   document.getElementById('btn-main-menu').addEventListener('click', () => {
-    // Returning to the main menu always exits daily mode, so the next
-    // INITIATE GAME starts a normal campaign with real RNG.
+    // Returning to the main menu always exits any special mode, so the
+    // next INITIATE GAME starts a normal campaign with real RNG.
     dailyMode = false;
     dailyDate = null;
     deactivateDailySeed();
+    bossRushMode = false;
+    bossRushIndex = 0;
     document.getElementById('game-over-screen').classList.add('hidden');
     document.getElementById('start-menu').classList.remove('hidden');
   });
@@ -393,10 +408,12 @@ window.addEventListener('load', () => {
 
   document.getElementById('btn-pause-abort').addEventListener('click', () => {
     gameActive = false;
-    // Aborting mid-run also exits daily mode cleanly.
+    // Aborting mid-run also exits daily / boss-rush modes cleanly.
     dailyMode = false;
     dailyDate = null;
     deactivateDailySeed();
+    bossRushMode = false;
+    bossRushIndex = 0;
     document.getElementById('pause-screen').classList.add('hidden');
     document.getElementById('hud').classList.add('hidden');
     document.getElementById('start-menu').classList.remove('hidden');

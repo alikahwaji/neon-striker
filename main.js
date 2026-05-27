@@ -62,6 +62,23 @@ function triggerLevelClear() {
   // Stats: track the deepest level any run reaches + campaign-completion count.
   if (window.Stats) Stats.notify('level_completed', { level: currentLevel });
 
+  // Boss Rush bypasses the shop entirely. Either advance to the next boss
+  // or, if the player just dispatched the 4th boss, end the run with the
+  // game-over screen carrying the GLADIATOR achievement.
+  if (bossRushMode) {
+    bossRushIndex++;
+    if (bossRushIndex >= BOSS_RUSH_SEQUENCE.length) {
+      if (window.Achievements) Achievements.notify('boss_rush_completed', {});
+      // Quick beat before showing the game-over panel so the level-clear
+      // chime gets to play out.
+      setTimeout(() => showGameOverScreen(), 1500);
+      return;
+    }
+    // Next boss after a short breather. No shop, no upgrades — pure attrition.
+    setTimeout(() => loadAndStartLevel(), 1500);
+    return;
+  }
+
   // Save current stats to upgrade hangar
   document.getElementById('shop-scrap').innerText = `⚙️ ${scrapCredits}`;
 
@@ -75,13 +92,23 @@ function triggerLevelClear() {
 function loadAndStartLevel() {
   inIntro = true;
 
-  // Levels 1-20 come from the hand-curated LEVEL_DATABASE. Anything beyond
-  // that drops into endless mode and gets a generated sector data object
-  // with escalating difficulty — see generateEndlessLevel() below.
-  const lvlData = LEVEL_DATABASE[currentLevel] || generateEndlessLevel(currentLevel);
+  // Level data resolution order:
+  //   Boss Rush  -> synthetic data from BOSS_RUSH_SEQUENCE[bossRushIndex]
+  //   Campaign   -> LEVEL_DATABASE[currentLevel] (sectors 1-20)
+  //   Endless    -> generateEndlessLevel(currentLevel) (sectors 21+)
+  // Boss Rush takes precedence so its bosses don't get mixed with campaign
+  // level numbering — currentLevel is set to 1 + bossRushIndex purely for
+  // the HUD's 'LEVEL N' chip.
+  let lvlData;
+  if (bossRushMode) {
+    lvlData = BOSS_RUSH_SEQUENCE[bossRushIndex];
+    currentLevel = bossRushIndex + 1;
+  } else {
+    lvlData = LEVEL_DATABASE[currentLevel] || generateEndlessLevel(currentLevel);
+  }
 
   if (window.logAnalyticsEvent) {
-    window.logAnalyticsEvent('level_start', { level: currentLevel, theme: lvlData.theme, endless: currentLevel > 20 });
+    window.logAnalyticsEvent('level_start', { level: currentLevel, theme: lvlData.theme, endless: !bossRushMode && currentLevel > 20, bossRush: bossRushMode });
   }
   
   // Set Soundtrack BGM Theme
@@ -713,11 +740,10 @@ function showGameOverScreen() {
     inputContainer.classList.add('hidden');
   }
 
-  // Handle Continue button visibility — disabled in daily mode so every
-  // pilot's score reflects a single uninterrupted attempt against the
-  // same seed.
+  // Handle Continue button visibility — disabled in daily / boss-rush so
+  // every pilot's score reflects a single uninterrupted attempt.
   const btnContinue = document.getElementById('btn-continue');
-  if (currentLevel > 1 && selectedDifficulty !== 'elite' && !dailyMode) {
+  if (currentLevel > 1 && selectedDifficulty !== 'elite' && !dailyMode && !bossRushMode) {
     btnContinue.innerText = `CONTINUE SECTOR ${currentLevel}`;
     btnContinue.classList.remove('hidden');
   } else {
