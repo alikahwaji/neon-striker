@@ -197,6 +197,20 @@ function updateGame(dt) {
     if (traumaLevel < 0) traumaLevel = 0;
   }
 
+  // Critical-health heartbeat. The SHIELD HUD bar already flashes red below
+  // 25% but combat is intense and players miss it visually — a periodic low
+  // beep keeps them aware. Cadence is set in audio.js; we just drive it
+  // here while the player is alive and the warning band applies.
+  if (health > 0 && health <= maxHealth * 0.25 && !gamePaused) {
+    criticalHeartbeatTimer -= dt;
+    if (criticalHeartbeatTimer <= 0) {
+      GameAudio.playCriticalHealthBeep();
+      criticalHeartbeatTimer = 1100; // ms between beeps
+    }
+  } else {
+    criticalHeartbeatTimer = 0; // reset so first hit into critical band beeps immediately
+  }
+
   // Warp drive scrolling timer update
   if (isWarping) {
     let mult = bulletTimeActive ? 0.4 : 1.0;

@@ -74,6 +74,11 @@ let nextHomingLaunchTime = 0;
 // Trauma Screen Shake trauma level
 let traumaLevel = 0;
 
+// Countdown (ms) between critical-health heartbeat beeps. Driven from
+// updateGame; reset to 0 whenever health exits the critical band so the
+// first re-entry into low-health territory beeps immediately.
+let criticalHeartbeatTimer = 0;
+
 // Game Entity Pools
 let player = null;
 let playerLasers = [];

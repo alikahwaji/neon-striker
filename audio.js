@@ -405,6 +405,66 @@ class SynthAudioEngine {
     });
   }
 
+  /**
+   * Short pulsing low-pitch beep, intended for repeating heartbeat-style
+   * warning when player health is critical. Caller is responsible for the
+   * cadence (e.g. one call every ~1.2 s while health < threshold) so the
+   * audio engine doesn't have to track game state.
+   */
+  playCriticalHealthBeep() {
+    if (!this.ctx) return;
+    this.resume();
+
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'square';
+    osc.connect(gain);
+    gain.connect(this.masterSfxGain);
+
+    const now = this.ctx.currentTime;
+    const duration = 0.18;
+
+    // Two short pulses (heartbeat) — first deeper, second slightly higher.
+    osc.frequency.setValueAtTime(180, now);
+    osc.frequency.setValueAtTime(240, now + duration * 0.55);
+
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(0.22, now + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+    osc.start(now);
+    osc.stop(now + duration + 0.02);
+  }
+
+  /**
+   * One-shot descending alarm when the SHIELD power-up absorbs a hit
+   * and depletes — distinct from playPowerUpSound() (the pickup chime)
+   * so the player can tell shield dropped vs. shield picked up by ear.
+   */
+  playShieldDownAlarm() {
+    if (!this.ctx) return;
+    this.resume();
+
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.connect(gain);
+    gain.connect(this.masterSfxGain);
+
+    const now = this.ctx.currentTime;
+    const duration = 0.32;
+
+    // Falling sweep evokes 'shield collapse'.
+    osc.frequency.setValueAtTime(620, now);
+    osc.frequency.exponentialRampToValueAtTime(140, now + duration);
+
+    gain.gain.setValueAtTime(0.28, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+    osc.start(now);
+    osc.stop(now + duration + 0.04);
+  }
+
   // Massive smart bomb explosion
   playBombSound() {
     if (!this.ctx) return;
