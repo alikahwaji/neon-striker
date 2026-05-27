@@ -101,7 +101,7 @@ Because Neon Striker is serverless and zero-dependency, you don't need to run an
     cd neon-striker
     ```
 2.  **Launch directly**:
-    Simply double-click [index.html](file:///c:/Users/alika/games/index.html) in your browser!
+    Simply double-click [index.html](index.html) in your browser!
 3.  *(Optional)* **Local server dev**:
     If you wish to serve the directory locally, run a lightweight static web server:
     ```bash
