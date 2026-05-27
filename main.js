@@ -67,11 +67,14 @@ function triggerLevelClear() {
 
 function loadAndStartLevel() {
   inIntro = true;
-  
-  const lvlData = LEVEL_DATABASE[currentLevel] || LEVEL_DATABASE[1];
-  
+
+  // Levels 1-20 come from the hand-curated LEVEL_DATABASE. Anything beyond
+  // that drops into endless mode and gets a generated sector data object
+  // with escalating difficulty — see generateEndlessLevel() below.
+  const lvlData = LEVEL_DATABASE[currentLevel] || generateEndlessLevel(currentLevel);
+
   if (window.logAnalyticsEvent) {
-    window.logAnalyticsEvent('level_start', { level: currentLevel, theme: lvlData.theme });
+    window.logAnalyticsEvent('level_start', { level: currentLevel, theme: lvlData.theme, endless: currentLevel > 20 });
   }
   
   // Set Soundtrack BGM Theme
@@ -124,6 +127,56 @@ function loadAndStartLevel() {
     spawnCampaignForces(lvlData);
     maybeShowPauseHint();
   }, 3200);
+}
+
+/* ----------------------------------------------------
+   ENDLESS MODE — procedural sectors past Level 20
+   ----------------------------------------------------
+   The hand-curated campaign ends at LEVEL_DATABASE[20]. Past that we
+   synthesise level data so the player can keep going indefinitely.
+   Every 5 sectors is a boss fight; difficulty scales with tier
+   (every 5 levels = +1 tier of enemy variety and density). Themes
+   cycle through the available BGM tracks for visual variety. */
+const ENDLESS_THEMES = ['standard', 'trench', 'organic', 'gargantua', 'spice', 'tron', 'matrix', 'wey_sentry', 'ds_core'];
+const ENDLESS_BOSS_TYPES = ['boss', 'boss2', 'sandworm', 'unicron'];
+
+function generateEndlessLevel(n) {
+  const endlessIdx = n - 20;           // 1, 2, 3, ...
+  const tier = Math.floor((endlessIdx - 1) / 5); // 0..N, bumps every 5 sectors
+  const isBossSector = endlessIdx % 5 === 0;
+  const themeIdx = (endlessIdx - 1) % ENDLESS_THEMES.length;
+
+  if (isBossSector) {
+    return {
+      title: `ENDLESS ${n}`,
+      subtitle: `WORLD-DEVOURER MK ${tier + 2}`,
+      theme: 'unicron', // always the heavy-metal track for boss intervals
+      quote: '⚠️ ENDLESS BOSS ENGAGEMENT ⚠️\nThe void keeps producing new threats. How deep can you go?',
+      bossType: ENDLESS_BOSS_TYPES[endlessIdx % ENDLESS_BOSS_TYPES.length]
+    };
+  }
+
+  return {
+    title: `ENDLESS ${n}`,
+    subtitle: `SECTOR XX — TIER ${tier + 1}`,
+    theme: ENDLESS_THEMES[themeIdx],
+    quote: `Sector ${n}: hostiles continue to mount. No retreat, no resupply, no end.`,
+    // Asteroid density and grid size both scale with tier — capped so the
+    // canvas doesn't get carpet-bombed past playability.
+    asteroidChance: Math.min(0.04, 0.008 + tier * 0.006),
+    enemyGrid: {
+      rows: Math.min(5, 2 + Math.floor(tier / 2)),
+      cols: Math.min(7, 4 + Math.floor(tier / 3)),
+      scouts: true,
+      swarmers: tier >= 1,
+      kamikazes: tier >= 2,
+      phaseShips: tier >= 3,
+      heatSeekers: tier >= 2,
+      snipers: tier >= 4,
+      shieldBlockers: tier >= 3,
+      lightCycles: tier >= 4
+    }
+  };
 }
 
 // First-ever-session reminder that P pauses the game. Shown once per

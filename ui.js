@@ -181,14 +181,12 @@ function updateHangarUI() {
 function exitHangarAndLaunch() {
   document.getElementById('shop-menu').classList.add('hidden');
   inShop = false;
-  
-  // Sector Level advance!
+
+  // Sector Level advance — past Level 20 we drop into endless mode where
+  // generateEndlessLevel(n) in main.js synthesises sector data on demand.
+  // No upper cap; the player decides when their run ends.
   currentLevel++;
-  if (currentLevel > 20) {
-    // Campaign victory loop reset harder
-    currentLevel = 1;
-  }
-  
+
   loadAndStartLevel();
 }
 
