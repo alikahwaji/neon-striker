@@ -207,6 +207,11 @@ window.addEventListener('load', () => {
     if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
       e.preventDefault();
     }
+    // Record a one-shot edge only on the initial press, not on key-repeat,
+    // so a held Shift on Matrix levels doesn't auto-trigger EMP every frame.
+    if (!keys[e.code]) {
+      keysPressed[e.code] = true;
+    }
     keys[e.code] = true;
 
     if (e.code === 'KeyP') {

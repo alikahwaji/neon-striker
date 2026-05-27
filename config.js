@@ -23,6 +23,10 @@ const CONFIG = {
 let canvas, ctx;
 let lastTime = 0;
 let keys = {};
+// One-shot keypress edges, populated by the keydown handler in ui.js and
+// cleared by updateGame() each frame. Used for actions that must fire on
+// press (e.g. EMP) so holding the key doesn't auto-retrigger every frame.
+let keysPressed = {};
 let gameActive = false;
 let gamePaused = false;
 let inShop = false;

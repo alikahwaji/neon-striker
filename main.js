@@ -210,13 +210,21 @@ function updateGame(dt) {
   if (player) {
     player.update(dt);
 
-    // Active EMP Shockwave trigger
-    if (playerUpgrades.emp > 0 && gameActive && !gamePaused) {
-      if ((keys['KeyE'] || keys['ShiftLeft'] || keys['ShiftRight']) && empCooldownTimer <= 0) {
+    // Active EMP Shockwave trigger — edge-detected on initial press only.
+    // On Matrix levels (theme === 'matrix') Shift / E also engage bullet-time
+    // while held, so polling keys[...] every frame here would re-fire the EMP
+    // the instant its cooldown hit zero with no way for the player to stop it.
+    // Reading keysPressed instead means one press = at most one EMP attempt.
+    if (playerUpgrades.emp > 0 && gameActive && !gamePaused && empCooldownTimer <= 0) {
+      if (keysPressed['KeyE'] || keysPressed['ShiftLeft'] || keysPressed['ShiftRight']) {
         triggerPlayerEMP();
       }
     }
   }
+
+  // Consume all one-shot key edges. Anything triggered on press above must run
+  // before this line; anything new added later should follow the same pattern.
+  keysPressed = {};
 
   // Update HUD HUD values
   document.getElementById('hud-score').innerText = String(score).padStart(6, '0');
@@ -487,11 +495,10 @@ function updateGame(dt) {
     
     if (enemy.y > CONFIG.height + 40) {
       enemies.splice(i, 1);
-      health = Math.max(0, health - 15);
-      triggerScreenShake(0.3);
-      if (health <= 0) {
-        triggerPlayerExplosion();
-      }
+      // Route through damagePlayer so god mode / SHIELD pickup / invuln frames
+      // all apply — previously this branch decremented health directly and
+      // ignored every defensive system, which silently killed cheat 'god' runs.
+      damagePlayer(15);
     }
   }
 
@@ -528,13 +535,19 @@ function updateGame(dt) {
    ---------------------------------------------------- */
 function gameTick(timestamp) {
   if (!lastTime) lastTime = timestamp;
-  const dt = timestamp - lastTime;
+  const rawDt = timestamp - lastTime;
   lastTime = timestamp;
+
+  // Clamp dt so the first frame (lastTime initialised to 0) and frames after
+  // a tab-throttle return don't dump hundreds of ms into the dt-scaled timers
+  // (shootTimer, chargeTimer, dsLaserTimer, activePowerUps[*]) all at once.
+  // 50ms covers ~3 dropped frames at 60Hz, which is more than enough headroom.
+  const dt = Math.min(rawDt, 50);
 
   if (gameActive && !gamePaused) {
     updateGame(dt);
   }
-  
+
   drawGame();
   requestAnimationFrame(gameTick);
 }
