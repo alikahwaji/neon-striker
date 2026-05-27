@@ -47,6 +47,7 @@ function triggerPlayerEMP() {
 function destroyEnemy(enemy, eIndex) {
   enemies.splice(eIndex, 1);
   score += enemy.scoreValue;
+  if (window.Achievements) Achievements.notify('enemy_destroyed', { type: enemy.type });
   GameAudio.playExplosionSound(enemy.type.startsWith('boss') || enemy.type === 'unicron' ? 2.2 : 0.85);
   triggerScreenShake(enemy.type.startsWith('boss') || enemy.type === 'unicron' ? 0.9 : 0.25);
   
@@ -260,6 +261,7 @@ function handleCollisions() {
       
       scrapItems.splice(s, 1);
       scrapCredits += 10;
+      if (window.Achievements) Achievements.notify('scrap_collected', { amount: 10 });
       floatingTexts.push(new FloatingText(scrap.x, scrap.y - 10, "+10 ⚙️", '#39ff14'));
       GameAudio.playHitSound();
     }
@@ -394,6 +396,9 @@ function damagePlayer(amount) {
     player.invulnFrames = 30;
     return;
   }
+
+  // Achievement tracker — flagging that this level is no longer 'untouchable'.
+  if (window.Achievements) Achievements.notify('damage_taken', { amount });
 
   health = Math.max(0, health - amount);
   triggerScreenShake(0.5);

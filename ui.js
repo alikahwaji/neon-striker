@@ -259,6 +259,24 @@ window.addEventListener('load', () => {
     document.getElementById('start-menu').classList.remove('hidden');
   });
 
+  document.getElementById('btn-achievements').addEventListener('click', () => {
+    renderAchievementsUI();
+    document.getElementById('start-menu').classList.add('hidden');
+    document.getElementById('achievements-menu').classList.remove('hidden');
+  });
+
+  document.getElementById('btn-achievements-back').addEventListener('click', () => {
+    document.getElementById('achievements-menu').classList.add('hidden');
+    document.getElementById('start-menu').classList.remove('hidden');
+  });
+
+  // Subscribe to achievement unlocks once. The Achievements module dispatches
+  // every newly-unlocked def to all listeners; we render a transient toast +
+  // chime so the player notices mid-game.
+  if (window.Achievements) {
+    Achievements.on('unlocked', def => showAchievementToast(def));
+  }
+
   document.getElementById('btn-restart').addEventListener('click', () => {
     startGame();
   });
@@ -315,7 +333,8 @@ window.addEventListener('load', () => {
     if (scrapCredits >= cost && lvl < 5) {
       scrapCredits -= cost;
       playerUpgrades.speed++;
-      
+
+      if (window.Achievements) Achievements.notify('upgrade_purchased', { type: 'speed' });
       if (window.logAnalyticsEvent) {
         window.logAnalyticsEvent('purchase_upgrade', { type: 'speed', level: playerUpgrades.speed });
       }
@@ -335,7 +354,8 @@ window.addEventListener('load', () => {
     if (scrapCredits >= cost && lvl < 5) {
       scrapCredits -= cost;
       playerUpgrades.shield++;
-      
+
+      if (window.Achievements) Achievements.notify('upgrade_purchased', { type: 'shield' });
       if (window.logAnalyticsEvent) {
         window.logAnalyticsEvent('purchase_upgrade', { type: 'shield', level: playerUpgrades.shield });
       }
@@ -356,7 +376,8 @@ window.addEventListener('load', () => {
     if (scrapCredits >= cost && lvl < 5) {
       scrapCredits -= cost;
       playerUpgrades.cooldown++;
-      
+
+      if (window.Achievements) Achievements.notify('upgrade_purchased', { type: 'cooldown' });
       if (window.logAnalyticsEvent) {
         window.logAnalyticsEvent('purchase_upgrade', { type: 'cooldown', level: playerUpgrades.cooldown });
       }
@@ -375,7 +396,8 @@ window.addEventListener('load', () => {
     if (scrapCredits >= cost && playerUpgrades.homing === 0) {
       scrapCredits -= cost;
       playerUpgrades.homing = 1;
-      
+
+      if (window.Achievements) Achievements.notify('upgrade_purchased', { type: 'homing' });
       if (window.logAnalyticsEvent) {
         window.logAnalyticsEvent('purchase_upgrade', { type: 'homing', level: playerUpgrades.homing });
       }
@@ -391,7 +413,8 @@ window.addEventListener('load', () => {
     if (scrapCredits >= cost && playerUpgrades.wingman === 0) {
       scrapCredits -= cost;
       playerUpgrades.wingman = 1;
-      
+
+      if (window.Achievements) Achievements.notify('upgrade_purchased', { type: 'wingman' });
       if (window.logAnalyticsEvent) {
         window.logAnalyticsEvent('purchase_upgrade', { type: 'wingman', level: playerUpgrades.wingman });
       }
@@ -407,7 +430,8 @@ window.addEventListener('load', () => {
     if (scrapCredits >= cost && playerUpgrades.emp === 0) {
       scrapCredits -= cost;
       playerUpgrades.emp = 1;
-      
+
+      if (window.Achievements) Achievements.notify('upgrade_purchased', { type: 'emp' });
       if (window.logAnalyticsEvent) {
         window.logAnalyticsEvent('purchase_upgrade', { type: 'emp', level: playerUpgrades.emp });
       }
@@ -423,7 +447,8 @@ window.addEventListener('load', () => {
     if (scrapCredits >= cost && playerUpgrades.magnet === 0) {
       scrapCredits -= cost;
       playerUpgrades.magnet = 1;
-      
+
+      if (window.Achievements) Achievements.notify('upgrade_purchased', { type: 'magnet' });
       if (window.logAnalyticsEvent) {
         window.logAnalyticsEvent('purchase_upgrade', { type: 'magnet', level: playerUpgrades.magnet });
       }
@@ -525,6 +550,7 @@ window.addEventListener('load', () => {
       e.target.classList.add('active');
       selectedSkin = e.target.getAttribute('data-skin');
 
+      if (window.Achievements) Achievements.notify('skin_selected', { skin: selectedSkin });
       GameAudio.playPowerUpSound();
       persistSettings();
 
@@ -571,7 +597,10 @@ window.addEventListener('load', () => {
       cheatMsg.innerText = 'ERROR: INVALID ACCESS CODE';
       GameAudio.playExplosionSound(0.5);
     }
-    if (recognised) persistSettings();
+    if (recognised) {
+      persistSettings();
+      if (window.Achievements) Achievements.notify('cheat_entered', { code });
+    }
     cheatInput.value = '';
   }
   
@@ -588,6 +617,69 @@ window.addEventListener('load', () => {
 
   requestAnimationFrame(gameTick);
 });
+
+/* ----------------------------------------------------
+   ACHIEVEMENTS PANEL + TOAST
+   ---------------------------------------------------- */
+// Build the achievements grid each time the panel opens so unlock state
+// reflects the latest Achievements.notify() calls. Locked cards render
+// greyed-out so progress is visible at a glance.
+function renderAchievementsUI() {
+  if (!window.Achievements) return;
+  const defs = Achievements.getDefs();
+  const unlocked = Achievements.getUnlocked();
+  const host = document.getElementById('achievements-grid');
+  while (host.firstChild) host.removeChild(host.firstChild);
+
+  defs.forEach(def => {
+    const isUnlocked = unlocked.has(def.id);
+    const card = document.createElement('div');
+    card.className = 'ach-card ' + (isUnlocked ? 'unlocked' : 'locked');
+
+    const header = document.createElement('div');
+    header.className = 'ach-header';
+    const icon = document.createElement('span');
+    icon.className = 'ach-icon';
+    // Locked cards show a question mark so the metadata for unmet
+    // achievements is hinted at but not fully spoiled.
+    icon.textContent = isUnlocked ? def.icon : '❓';
+    const name = document.createElement('span');
+    name.className = 'ach-name';
+    name.textContent = def.name;
+    header.append(icon, name);
+
+    const desc = document.createElement('div');
+    desc.className = 'ach-desc';
+    desc.textContent = def.description;
+
+    card.append(header, desc);
+    host.appendChild(card);
+  });
+
+  const progress = document.getElementById('achievements-progress');
+  if (progress) progress.textContent = `${unlocked.size} / ${defs.length} UNLOCKED`;
+}
+
+// Per-toast hide timer so consecutive unlocks queue and replace cleanly
+// instead of fighting each other for screen time.
+let achToastTimer = null;
+function showAchievementToast(def) {
+  const toast = document.getElementById('achievement-toast');
+  if (!toast) return;
+  document.getElementById('ach-toast-icon').textContent = def.icon || '🏆';
+  document.getElementById('ach-toast-name').textContent = def.name;
+  toast.classList.remove('hidden');
+  // Subtle audio confirmation — reuse the existing power-up chime to keep
+  // the synth palette consistent.
+  if (window.GameAudio && typeof GameAudio.playPowerUpSound === 'function') {
+    GameAudio.playPowerUpSound();
+  }
+  if (achToastTimer) clearTimeout(achToastTimer);
+  achToastTimer = setTimeout(() => {
+    toast.classList.add('hidden');
+    achToastTimer = null;
+  }, 4000);
+}
 
 /* ----------------------------------------------------
    SETTINGS PERSISTENCE

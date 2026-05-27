@@ -54,10 +54,15 @@ function handleWaveSpawning(dt) {
 function triggerLevelClear() {
   gameActive = false;
   GameAudio.playLevelClearSound();
-  
+
+  // Achievement check fires BEFORE we open the shop — the level_cleared
+  // payload carries currentLevel, and Untouchable inspects perRun damage
+  // counters which startLevel() reset at the start of this level.
+  if (window.Achievements) Achievements.notify('level_cleared', { level: currentLevel });
+
   // Save current stats to upgrade hangar
   document.getElementById('shop-scrap').innerText = `⚙️ ${scrapCredits}`;
-  
+
   // Transition to Nanotech Upgrade Hangar Shop Modal
   setTimeout(() => {
     openUpgradeHangar();
@@ -125,6 +130,10 @@ function loadAndStartLevel() {
     gamePaused = false;
 
     spawnCampaignForces(lvlData);
+    if (window.Achievements) {
+      Achievements.startLevel();
+      Achievements.notify('level_started', { level: currentLevel });
+    }
     maybeShowPauseHint();
   }, 3200);
 }
@@ -601,6 +610,11 @@ function startGame() {
 
   CONFIG.playerSpeed = CONFIG.playerSpeedBase;
   CONFIG.laserCooldown = CONFIG.laserCooldownBase;
+
+  // Reset per-run achievement scratch state. Cross-run counters (totals,
+  // skinsTried, unlocked set) survive untouched — only the per-run
+  // upgrade-types set and damage / scrap counters get cleared.
+  if (window.Achievements) Achievements.startRun(selectedDifficulty);
 
   player = new PlayerShip();
   
