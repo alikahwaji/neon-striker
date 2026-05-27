@@ -414,15 +414,29 @@ class SynthAudioEngine {
     this.init();
     if (!this.ctx) return;
     this.stopBackgroundMusic();
-    
+
     const stepDuration = 60 / this.bgmTempo / 2; // 8th notes
     let nextNoteTime = this.ctx.currentTime;
-    
+
     this.bgmInterval = setInterval(() => {
       const now = this.ctx.currentTime;
-      while (nextNoteTime < now + 0.1) {
+
+      // If the tab was backgrounded, setInterval throttles to ~1Hz. The
+      // ctx clock keeps running, so nextNoteTime can fall 30+ seconds
+      // behind real time. Without a guard, this while-loop would schedule
+      // hundreds of overlapping notes the instant the tab regains focus.
+      // Snap forward when we detect a large gap so we resume cleanly.
+      if (now - nextNoteTime > 0.5) {
+        nextNoteTime = now;
+      }
+
+      // Hard cap on how many notes a single tick can schedule, so any
+      // hitch (debugger pause, GC, etc.) can't burst-fire the synth.
+      let scheduled = 0;
+      while (nextNoteTime < now + 0.1 && scheduled < 8) {
         this.scheduleSequencerStep(nextNoteTime);
         nextNoteTime += stepDuration;
+        scheduled++;
       }
     }, 50);
   }

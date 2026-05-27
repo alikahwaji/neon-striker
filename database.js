@@ -73,7 +73,7 @@ window.saveGlobalHighScore = async function(name, score) {
   try {
     await addDoc(collection(db, "leaderboard"), {
       name: name.toUpperCase().slice(0, 18),
-      score: parseInt(score) || 0,
+      score: parseInt(score, 10) || 0, // explicit radix so '0x...' or leading-zero strings parse as decimal
       timestamp: serverTimestamp()
     });
     console.log(`Saved Global Score: ${name} - ${score}`);
