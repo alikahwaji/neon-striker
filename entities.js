@@ -43,7 +43,12 @@ class PlayerShip {
     let minX = 15;
     let maxX = CONFIG.width - this.width - 15;
     let minY = 220; // Stop exactly at the horizontal horizon line
-    let maxY = CONFIG.height - this.height - 15;
+    // Bottom margin large enough that the ship can never enter the bottom
+    // HUD strip (.hud-bottom occupies the lower ~48 CSS px / ~40 internal px
+    // of the canvas). Without this clearance, the SHIELD / EMP widgets
+    // (z-index 3, rgba(4,2,10,0.65) background) visually obscure the ship
+    // at its max-Y position.
+    let maxY = CONFIG.height - this.height - 55;
     
     const lvlData = LEVEL_DATABASE[currentLevel] || {};
     if (lvlData.trenchWalls) {
