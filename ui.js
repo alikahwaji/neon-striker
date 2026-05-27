@@ -281,6 +281,11 @@ window.addEventListener('load', () => {
       const nowMuted = GameAudio.toggleMute();
       document.getElementById('mute-indicator').classList.toggle('hidden', !nowMuted);
     }
+    // Konami code detection — must run before the form-input guard so it
+    // works on the main menu (no input focused there).
+    if (!typingInForm && !e.repeat) {
+      checkKonamiSequence(e.code);
+    }
   });
 
   window.addEventListener('keyup', e => {
@@ -720,6 +725,44 @@ window.addEventListener('load', () => {
 
   requestAnimationFrame(gameTick);
 });
+
+/* ----------------------------------------------------
+   KONAMI CODE — DEATH BLOSSOM unlock
+   ----------------------------------------------------
+   ↑↑↓↓←→←→BA, the classic arcade easter egg. Rolling buffer of the
+   last 10 keypresses; on match we activate the 8-way DEATH_BLOSSOM
+   power-up for 8 seconds and fire an achievement. Works on the main
+   menu AND mid-gameplay so players can re-summon it.
+*/
+const KONAMI_SEQUENCE = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'KeyB', 'KeyA'];
+const konamiBuffer = [];
+
+function checkKonamiSequence(code) {
+  konamiBuffer.push(code);
+  if (konamiBuffer.length > KONAMI_SEQUENCE.length) konamiBuffer.shift();
+  // Cheap full-array compare — sequence is only 10 entries.
+  for (let i = 0; i < KONAMI_SEQUENCE.length; i++) {
+    if (konamiBuffer[i] !== KONAMI_SEQUENCE[i]) return;
+  }
+  triggerDeathBlossom();
+  konamiBuffer.length = 0; // reset so the next match starts clean
+}
+
+function triggerDeathBlossom() {
+  activePowerUps['DEATH_BLOSSOM'] = 8000; // 8 second window
+  GameAudio.playLevelClearSound();
+  if (player && typeof FloatingText !== 'undefined') {
+    floatingTexts.push(new FloatingText(
+      player.x + player.width / 2,
+      player.y - 25,
+      '🌸 DEATH BLOSSOM!',
+      '#ff6ad5'
+    ));
+  }
+  // Trigger a quick screen-shake burst for impact.
+  if (typeof triggerScreenShake === 'function') triggerScreenShake(0.6);
+  if (window.Achievements) Achievements.notify('konami_entered', {});
+}
 
 /* ----------------------------------------------------
    PILOT PROFILE — career stats + achievement grid

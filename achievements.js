@@ -118,6 +118,13 @@ const ACHIEVEMENT_DEFS = [
     // Combo count is carried on the enemy_destroyed payload; 20 kills lands
     // exactly on the ×5 threshold.
     check: (e, p, s) => e === 'enemy_destroyed' && p && p.combo >= 20
+  },
+  {
+    id: 'death_blossom',
+    icon: '🌸',
+    name: 'Death Blossom',
+    description: 'Discover the legendary arcade code.',
+    check: (e, p, s) => e === 'konami_entered'
   }
 ];
 
