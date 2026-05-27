@@ -9,6 +9,7 @@
   --panel-bg: rgba(13, 8, 28, 0.85);
   --border-color: rgba(0, 240, 255, 0.35);
   --neon-blue: #00f0ff;
+  --neon-cyan: #00f0ff; /* alias used by HERO button, cheat messages, hover glow */
   --neon-magenta: #ff00aa;
   --neon-purple: #8b00ff;
   --neon-yellow: #ffea00;
