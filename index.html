@@ -99,11 +99,19 @@
         </div>
 
         <div class="menu-actions">
-          <button id="btn-start" class="btn btn-primary select-none">INITIATE GAME</button>
-          <button id="btn-daily" class="btn btn-daily select-none">🌙 DAILY CHALLENGE</button>
-          <button id="btn-settings" class="btn btn-secondary select-none">SYSTEM PARAMETERS</button>
-          <button id="btn-scores" class="btn btn-secondary select-none">LEADERBOARD</button>
-          <button id="btn-achievements" class="btn btn-secondary select-none">ACHIEVEMENTS</button>
+          <!-- Two clear groups: 'play' actions on top (primary visual weight),
+               'info' actions below (smaller, equal width 3-up). Keeps the
+               two ways to start a game visually paired and prevents the
+               previous 2-2-1 wrap where ACHIEVEMENTS landed alone. -->
+          <div class="menu-row menu-row-play">
+            <button id="btn-start" class="btn btn-primary select-none">▶ INITIATE GAME</button>
+            <button id="btn-daily" class="btn btn-daily select-none">🌙 DAILY CHALLENGE</button>
+          </div>
+          <div class="menu-row menu-row-info">
+            <button id="btn-settings" class="btn btn-secondary select-none">⚙ SETTINGS</button>
+            <button id="btn-scores" class="btn btn-secondary select-none">🏆 LEADERBOARD</button>
+            <button id="btn-achievements" class="btn btn-secondary select-none">🏅 ACHIEVEMENTS</button>
+          </div>
         </div>
 
         <div class="how-to-play">

@@ -452,6 +452,60 @@ body {
   overflow: hidden;
 }
 
+/* ----------------------------------------------------
+   START MENU LAYOUT — two-tier button hierarchy
+   ----------------------------------------------------
+   Previously the 5 menu buttons relied on wrap-from-flex, producing a
+   2-2-1 grid where ACHIEVEMENTS landed alone on its own row. New
+   structure: row 1 holds the two game-start actions side-by-side at
+   full button weight; row 2 holds the three secondary panels in an
+   equal 3-up grid at compact weight. Visual hierarchy now matches
+   intent — pick how to play, then optionally open an info panel. */
+.menu-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.menu-row {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* Override the global .btn defaults so flex layout takes over: equal-
+   width children, no per-button margins (the gap handles spacing), and
+   a flexible min-width so narrow viewports wrap gracefully instead of
+   forcing horizontal overflow. */
+.menu-row .btn {
+  flex: 1 1 220px;
+  min-width: 0;
+  margin: 0;
+}
+
+.menu-row-play .btn {
+  font-size: 1.05rem;
+  padding: 0.95rem 1.4rem;
+}
+
+.menu-row-info .btn {
+  font-size: 0.78rem;
+  padding: 0.7rem 0.9rem;
+  letter-spacing: 0.12em;
+  flex: 1 1 160px;
+}
+
+/* Subtle separator between the play and info tiers so the grouping
+   reads at a glance without adding heavy chrome. */
+.menu-row-play {
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
 .btn-primary {
   color: var(--neon-blue);
   border-color: var(--neon-blue);
