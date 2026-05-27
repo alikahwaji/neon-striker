@@ -136,6 +136,15 @@ let traumaLevel = 0;
 // first re-entry into low-health territory beeps immediately.
 let criticalHeartbeatTimer = 0;
 
+// Shared per-frame timestamp. Set once at the top of gameTick() to
+// Date.now(), then read by every per-frame draw / update that needs a
+// time-based effect (rainbow hue cycling, invuln blink, saucer light
+// spin, shield bubble pulse, light-cycle trail expiry, etc.). Replaces
+// the dozens of inline Date.now() calls that were peppering the hot
+// path. Bonus: every effect within a single frame uses the SAME timestamp,
+// so cross-effect animations stay phase-locked. */
+let frameNow = 0;
+
 // Score combo multiplier state. Each consecutive kill within COMBO_WINDOW_MS
 // of the previous bumps comboKills; the multiplier is derived from
 // comboKills (3 kills → ×2, 7 → ×3, 12 → ×4, 20 → ×5). Reset to 0 on any

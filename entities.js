@@ -90,12 +90,13 @@ class PlayerShip {
       this.shoot();
     }
 
-    // Auto launcher homing rocket trigger
+    // Auto launcher homing rocket trigger — uses shared frameNow (set
+    // once per frame in gameTick) instead of Date.now() so all per-frame
+    // cooldown checks stay phase-locked with each other.
     if (playerUpgrades.homing > 0 && gameActive && !gamePaused) {
-      const now = Date.now();
-      if (now >= nextHomingLaunchTime) {
+      if (frameNow >= nextHomingLaunchTime) {
         this.fireHomingMissile();
-        nextHomingLaunchTime = now + 1800; // Auto fires every 1.8 seconds
+        nextHomingLaunchTime = frameNow + 1800; // Auto fires every 1.8 seconds
       }
     }
 
@@ -105,7 +106,7 @@ class PlayerShip {
   }
 
   draw() {
-    if (this.invulnFrames > 0 && Math.floor(Date.now() / 80) % 2 === 0) {
+    if (this.invulnFrames > 0 && Math.floor(frameNow / 80) % 2 === 0) {
       return;
     }
 
@@ -126,8 +127,8 @@ class PlayerShip {
       secondary = '#00f0ff';
       fill = '#0f001f';
     } else if (selectedSkin === 'rainbow') {
-      primary = `hsl(${Math.floor(Date.now() / 12) % 360}, 100%, 60%)`;
-      secondary = `hsl(${Math.floor(Date.now() / 12 + 180) % 360}, 100%, 50%)`;
+      primary = `hsl(${Math.floor(frameNow / 12) % 360}, 100%, 60%)`;
+      secondary = `hsl(${Math.floor(frameNow / 12 + 180) % 360}, 100%, 50%)`;
       fill = '#000000';
     }
 
@@ -162,7 +163,7 @@ class PlayerShip {
       // Spinning core lights
       const numLights = 6;
       ctx.fillStyle = '#ffea00';
-      const angleOffset = Date.now() * 0.005;
+      const angleOffset = frameNow * 0.005;
       for (let i = 0; i < numLights; i++) {
         const angle = (i / numLights) * Math.PI * 2 + angleOffset;
         const lx = sx + Math.cos(angle) * (radius * 0.7);
@@ -177,7 +178,7 @@ class PlayerShip {
         ctx.strokeStyle = '#ffffff';
         ctx.shadowColor = '#00f0ff';
         ctx.shadowBlur = 20;
-        ctx.lineWidth = 3.5 + Math.sin(Date.now() / 100) * 1.5;
+        ctx.lineWidth = 3.5 + Math.sin(frameNow / 100) * 1.5;
         ctx.beginPath();
         ctx.arc(sx, sy, 34, 0, Math.PI * 2);
         ctx.stroke();
@@ -242,7 +243,7 @@ class PlayerShip {
       ctx.strokeStyle = '#ffffff';
       ctx.shadowColor = '#00f0ff';
       ctx.shadowBlur = 20;
-      ctx.lineWidth = 3.5 + Math.sin(Date.now() / 100) * 1.5;
+      ctx.lineWidth = 3.5 + Math.sin(frameNow / 100) * 1.5;
       ctx.beginPath();
       ctx.arc(this.x + this.width / 2, this.y + this.height / 2, 34, 0, Math.PI * 2);
       ctx.stroke();
@@ -259,7 +260,9 @@ class PlayerShip {
   }
 
   shoot() {
-    const now = Date.now();
+    // Shared per-frame timestamp (set in gameTick) — phase-locks the
+    // shoot cooldown with other per-frame time effects.
+    const now = frameNow;
     let cooldown = CONFIG.laserCooldown;
 
     if (activePowerUps['RAPID_FIRE']) {
@@ -346,22 +349,27 @@ class PlayerShip {
 
   fireHomingMissile() {
     if (enemies.length === 0) return;
-    
-    // Find closest active enemy
+
+    // Find closest active enemy — squared distance + plain for-loop
+    // (avoids per-call closure alloc + the unnecessary Math.sqrt that
+    // only ever fed a comparison).
     let closestEnemy = null;
-    let minDist = Infinity;
-    
-    enemies.forEach(enemy => {
+    let minDistSq = Infinity;
+    const cx = this.x + this.width / 2;
+    const cy = this.y;
+
+    for (let i = 0; i < enemies.length; i++) {
+      const enemy = enemies[i];
       if (enemy.y > 0 && enemy.y < CONFIG.height) {
-        const dx = enemy.x + enemy.width/2 - (this.x + this.width/2);
-        const dy = enemy.y + enemy.height/2 - this.y;
-        const dist = Math.sqrt(dx*dx + dy*dy);
-        if (dist < minDist) {
-          minDist = dist;
+        const dx = enemy.x + enemy.width / 2 - cx;
+        const dy = enemy.y + enemy.height / 2 - cy;
+        const d2 = dx * dx + dy * dy;
+        if (d2 < minDistSq) {
+          minDistSq = d2;
           closestEnemy = enemy;
         }
       }
-    });
+    }
 
     if (closestEnemy) {
       GameAudio.playHomingLaunchSound();
@@ -406,16 +414,22 @@ class HomingMissile {
         this.vy += (targetVy - this.vy) * 0.15;
       }
     } else {
-      // Find new target if current is destroyed
+      // Find new target if current is destroyed. Squared distance only —
+      // we never use the actual distance, just compare them, so no sqrt
+      // needed. Plain for-loop instead of forEach to skip the per-call
+      // closure allocation that ran every frame for every orphaned missile.
       let closest = null;
-      let minDist = Infinity;
-      enemies.forEach(e => {
-        const dist = Math.sqrt(Math.pow(e.x - this.x, 2) + Math.pow(e.y - this.y, 2));
-        if (dist < minDist) {
-          minDist = dist;
+      let minDistSq = Infinity;
+      for (let i = 0; i < enemies.length; i++) {
+        const e = enemies[i];
+        const dx = e.x - this.x;
+        const dy = e.y - this.y;
+        const d2 = dx * dx + dy * dy;
+        if (d2 < minDistSq) {
+          minDistSq = d2;
           closest = e;
         }
-      });
+      }
       if (closest) this.target = closest;
     }
 
@@ -467,7 +481,7 @@ class Laser {
     
     // Cheat Rainbow or Saucer skin projectile overrides
     if (vy < 0 && cheatRainbow) {
-      this.color = `hsl(${Math.floor(Date.now() / 4) % 360}, 100%, 60%)`;
+      this.color = `hsl(${Math.floor(frameNow / 4) % 360}, 100%, 60%)`;
     } else if (vy < 0 && selectedSkin === 'saucer') {
       this.color = '#bd00ff';
     } else {
@@ -772,6 +786,11 @@ class Enemy {
     }
 
     this.health = this.maxHealth;
+    // Pre-compute the boss flag once at construction so collision code
+    // doesn't have to do `enemy.type.startsWith('boss') || === 'sandworm'
+    // || === 'unicron'` 4× per damage event + per asteroid-vs-enemy pair
+    // (was a hot path on Lvl 9 / endless / boss fights).
+    this.isBoss = (type === 'boss' || type === 'boss2' || type === 'sandworm' || type === 'unicron');
   }
 
   update(dt) {
@@ -1314,7 +1333,7 @@ class Enemy {
         ctx.shadowColor = '#ff003c';
         ctx.shadowBlur = 20;
         ctx.lineWidth = 2.0;
-        const voidRing = (Date.now() / 15) % 110;
+        const voidRing = (frameNow / 15) % 110;
         ctx.beginPath();
         ctx.arc(cx, cy + 25, voidRing, 0, Math.PI * 2);
         ctx.stroke();
@@ -1817,10 +1836,9 @@ class WingmanDrone {
     this.x = px + Math.cos(this.angle) * 45 - this.width / 2;
     this.y = py + Math.sin(this.angle) * 45 - this.height / 2;
     
-    const now = Date.now();
-    if (now - this.lastFireTime > 450) {
+    if (frameNow - this.lastFireTime > 450) {
       this.fire();
-      this.lastFireTime = now;
+      this.lastFireTime = frameNow;
     }
   }
 
@@ -1878,11 +1896,18 @@ class EMPShockwave {
     
     GameAudio.playBombSound();
     traumaLevel = Math.min(1.0, traumaLevel + 0.4);
-    
-    // Trigger CSS glitch effect on game container for game juice!
-    const container = document.getElementById('game-container');
-    container.classList.add('hit-flash');
-    setTimeout(() => container.classList.remove('hit-flash'), 400);
+
+    // Trigger CSS glitch effect — uses cached container ref + debounced
+    // timer (same pattern as notifyBaseHit in main.js) so multiple EMP
+    // shocks in quick succession don't stack timeouts.
+    const container = (typeof getGameContainerEl === 'function')
+      ? getGameContainerEl()
+      : document.getElementById('game-container');
+    if (container) {
+      container.classList.add('hit-flash');
+      if (this._hitFlashTimer) clearTimeout(this._hitFlashTimer);
+      this._hitFlashTimer = setTimeout(() => container.classList.remove('hit-flash'), 400);
+    }
   }
 
   update(dt) {

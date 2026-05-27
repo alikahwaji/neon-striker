@@ -248,6 +248,16 @@ function formatScrap(n) {
    asteroid storm). This helper fires both a floating warning text at
    the escape position AND a brief red glow pulse along the bottom edge
    of the canvas via CSS, so the player understands what's happening. */
+// Cached reference to #game-container — used by notifyBaseHit and any
+// other per-frame escape/EMP path. Lazily resolved (DOM might not exist
+// at module-load if main.js runs before <body>); cached after first call.
+let _gameContainerEl = null;
+let _baseHitFlashTimer = null;
+function getGameContainerEl() {
+  if (!_gameContainerEl) _gameContainerEl = document.getElementById('game-container');
+  return _gameContainerEl;
+}
+
 function notifyBaseHit(escapeX, amount) {
   // Floating warning anchored just inside the bottom edge of the canvas
   // at the escape's X position. Uses the FloatingText entity for the
@@ -262,12 +272,17 @@ function notifyBaseHit(escapeX, amount) {
   }
 
   // Brief red glow pulse along the bottom edge of the game container.
-  // Uses the existing CSS class pattern (hit-flash etc.) — see styles.css
-  // .base-hit-flash for the animation definition.
-  const container = document.getElementById('game-container');
+  // Debounced: if multiple asteroids escape the same frame, only one
+  // setTimeout is scheduled (we clear the existing handle first). Cached
+  // container ref avoids a getElementById per escape.
+  const container = getGameContainerEl();
   if (container) {
     container.classList.add('base-hit-flash');
-    setTimeout(() => container.classList.remove('base-hit-flash'), 380);
+    if (_baseHitFlashTimer) clearTimeout(_baseHitFlashTimer);
+    _baseHitFlashTimer = setTimeout(() => {
+      container.classList.remove('base-hit-flash');
+      _baseHitFlashTimer = null;
+    }, 380);
   }
 }
 
@@ -556,15 +571,20 @@ function updateGame(dt) {
         enemy.trail.push({
           x: enemy.x + enemy.width / 2,
           y: enemy.y + enemy.height / 2,
-          birth: Date.now()
+          birth: frameNow
         });
         enemy.trailTimer = 0;
       }
-      
-      // Filter out segments older than 4 seconds
-      const now = Date.now();
+
+      // Drop expired segments from the HEAD of the trail in-place. Previously
+      // used .filter() which allocates a fresh array every frame, per cycle —
+      // 3-8 cycles on Tron + endless tier-4 levels meant 3-8 GC-heavy
+      // allocations every frame. Since trails are append-only and segments
+      // expire in insertion order, an in-place shift is correct + zero-alloc.
       if (enemy.trail) {
-        enemy.trail = enemy.trail.filter(pt => now - pt.birth < 4000);
+        while (enemy.trail.length && frameNow - enemy.trail[0].birth >= 4000) {
+          enemy.trail.shift();
+        }
       }
       
       // Collide trail with player ship — squared-distance test, and break on
@@ -682,6 +702,12 @@ function gameTick(timestamp) {
   if (!lastTime) lastTime = timestamp;
   const rawDt = timestamp - lastTime;
   lastTime = timestamp;
+
+  // Capture wall-clock once per frame for all per-frame time effects to
+  // share. Saves ~50 µs/frame across the dozens of inline Date.now()
+  // calls that PlayerShip.draw / Laser ctor / lightCycle trail filter /
+  // matrix rain / etc. used to do per call.
+  frameNow = Date.now();
 
   // Clamp dt so the first frame (lastTime initialised to 0) and frames after
   // a tab-throttle return don't dump hundreds of ms into the dt-scaled timers
@@ -949,24 +975,32 @@ function updateHud(dt) {
   // set of (type, seconds-remaining) tuples has actually changed. A frame
   // where every badge's displayed second-bucket is the same does zero DOM
   // work instead of clearing + re-parsing the subtree.
-  Object.keys(activePowerUps).forEach(key => {
+  // Single combined pass: tick down each timer, build the display
+  // signature, and collect the live entries — all in one loop instead
+  // of three. Saves two Object.keys() allocations per frame and two
+  // forEach closure allocations. Live entries are buffered so the
+  // rebuild-on-change branch below doesn't need a third pass.
+  const liveKeys = [];
+  let sig = '';
+  for (const key in activePowerUps) {
     if (activePowerUps[key] > 0) {
       activePowerUps[key] -= dt;
-      if (activePowerUps[key] <= 0) delete activePowerUps[key];
+      if (activePowerUps[key] <= 0) {
+        delete activePowerUps[key];
+        continue;
+      }
+      const secondsLeft = Math.ceil(activePowerUps[key] / 1000);
+      sig += key + ':' + secondsLeft + ';';
+      liveKeys.push({ key, secondsLeft });
     }
-  });
-
-  let sig = '';
-  Object.keys(activePowerUps).forEach(key => {
-    sig += `${key}:${Math.ceil(activePowerUps[key] / 1000)};`;
-  });
+  }
 
   if (sig !== hudLast.powerupsSig) {
     hudLast.powerupsSig = sig;
     const host = r.powerups;
     while (host.firstChild) host.removeChild(host.firstChild);
-    Object.keys(activePowerUps).forEach(key => {
-      const secondsLeft = Math.ceil(activePowerUps[key] / 1000);
+    for (let i = 0; i < liveKeys.length; i++) {
+      const { key, secondsLeft } = liveKeys[i];
       const label = key === 'TRIPLE_SHOT' ? 'TRIPLE'
                   : key === 'RAPID_FIRE' ? 'BOOST'
                   : 'SHIELD';
@@ -976,9 +1010,9 @@ function updateHud(dt) {
       nameSpan.textContent = label;
       const timerSpan = document.createElement('span');
       timerSpan.className = 'badge-timer';
-      timerSpan.textContent = `${secondsLeft}s`;
+      timerSpan.textContent = secondsLeft + 's';
       badge.append(nameSpan, timerSpan);
       host.appendChild(badge);
-    });
+    }
   }
 }
