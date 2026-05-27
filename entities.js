@@ -261,14 +261,38 @@ class PlayerShip {
   shoot() {
     const now = Date.now();
     let cooldown = CONFIG.laserCooldown;
-    
+
     if (activePowerUps['RAPID_FIRE']) {
       cooldown = CONFIG.laserCooldown * 0.45;
     }
 
+    // DEATH BLOSSOM (Konami code unlock) overrides everything — fires an
+    // 8-way radial spread at a very fast cadence regardless of tier or
+    // other power-ups. Short-circuit here so the rest of the tier ladder
+    // doesn't also run.
+    if (activePowerUps['DEATH_BLOSSOM']) {
+      const blossomCD = Math.max(80, cooldown * 0.35);
+      if (now - this.lastShotTime >= blossomCD) {
+        this.lastShotTime = now;
+        GameAudio.playLaserSound(1.6);
+        const cx = this.x + this.width / 2;
+        const cy = this.y + this.height / 2;
+        const speed = CONFIG.laserSpeed;
+        // 8 evenly-spaced lasers, starting upward so the spread reads
+        // naturally as 'flower blooming outward from the ship'.
+        for (let i = 0; i < 8; i++) {
+          const angle = (i / 8) * Math.PI * 2 - Math.PI / 2;
+          const vx = Math.cos(angle) * speed;
+          const vy = Math.sin(angle) * speed;
+          playerLasers.push(new Laser(cx, cy, vx, vy, '#ff6ad5', 2.0, 5, 14));
+        }
+      }
+      return;
+    }
+
     if (now - this.lastShotTime >= cooldown) {
       this.lastShotTime = now;
-      
+
       GameAudio.playLaserSound(activePowerUps['RAPID_FIRE'] ? 1.3 : 1.0);
 
       const tier = playerUpgrades.cooldown;

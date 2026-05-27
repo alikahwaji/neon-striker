@@ -42,6 +42,22 @@ let cheatRainbow = false;
 let cheatGod = false;
 let cheatMatrix = false;
 
+// Boss Rush mode — fight the four campaign bosses back-to-back with no
+// shop interludes, no continues, single score. bossRushIndex advances
+// through BOSS_RUSH_SEQUENCE; when it exceeds the array, the run ends.
+let bossRushMode = false;
+let bossRushIndex = 0;
+const BOSS_RUSH_SEQUENCE = [
+  { title: 'BOSS RUSH 1/4', subtitle: 'DREADNOUGHT CRUISER', theme: 'standard', bossType: 'dreadnought',
+    quote: '⚠️ BOSS RUSH INITIATED ⚠️\nFour titans, no shops, no continues. Survive.' },
+  { title: 'BOSS RUSH 2/4', subtitle: 'THE CYBER COMMANDER', theme: 'trench', bossType: 'cyber_commander',
+    quote: 'Cyber Commander warps in. The flagship\'s orbital bullet hell awaits.' },
+  { title: 'BOSS RUSH 3/4', subtitle: 'ARRAKIS SANDWORM', theme: 'spice', bossType: 'sandworm',
+    quote: 'Serpentine titan rises from the spice orbit. Mind the shield rings.' },
+  { title: 'BOSS RUSH 4/4', subtitle: 'UNICRON THE DEVOURER', theme: 'unicron', bossType: 'unicron',
+    quote: 'Final boss. Survive his phase-2 singularity and the gauntlet is yours.' }
+];
+
 // Daily Challenge globals — when dailyMode is true, Math.random is
 // overridden with a Mulberry32 PRNG seeded by today's UTC date so every
 // player faces the same enemy spawn timings, asteroid drops, and power-up
@@ -119,6 +135,23 @@ let traumaLevel = 0;
 // updateGame; reset to 0 whenever health exits the critical band so the
 // first re-entry into low-health territory beeps immediately.
 let criticalHeartbeatTimer = 0;
+
+// Score combo multiplier state. Each consecutive kill within COMBO_WINDOW_MS
+// of the previous bumps comboKills; the multiplier is derived from
+// comboKills (3 kills → ×2, 7 → ×3, 12 → ×4, 20 → ×5). Reset to 0 on any
+// damage taken or when comboTimer expires. Score added on destroyEnemy is
+// multiplied by getComboMultiplier() at award time.
+let comboKills = 0;
+let comboTimer = 0;
+const COMBO_WINDOW_MS = 2000;
+
+function getComboMultiplier() {
+  if (comboKills >= 20) return 5;
+  if (comboKills >= 12) return 4;
+  if (comboKills >= 7) return 3;
+  if (comboKills >= 3) return 2;
+  return 1;
+}
 
 // Game Entity Pools
 let player = null;

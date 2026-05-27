@@ -109,6 +109,29 @@ const ACHIEVEMENT_DEFS = [
     name: 'Daily Pilot',
     description: 'Submit a daily challenge score.',
     check: (e, p, s) => e === 'daily_score_submitted'
+  },
+  {
+    id: 'combo_maestro',
+    icon: '🔥',
+    name: 'Combo Maestro',
+    description: 'Reach a ×5 combo (20 kills with no damage).',
+    // Combo count is carried on the enemy_destroyed payload; 20 kills lands
+    // exactly on the ×5 threshold.
+    check: (e, p, s) => e === 'enemy_destroyed' && p && p.combo >= 20
+  },
+  {
+    id: 'death_blossom',
+    icon: '🌸',
+    name: 'Death Blossom',
+    description: 'Discover the legendary arcade code.',
+    check: (e, p, s) => e === 'konami_entered'
+  },
+  {
+    id: 'gladiator',
+    icon: '🏟',
+    name: 'Gladiator',
+    description: 'Complete Boss Rush — all four bosses, no shop.',
+    check: (e, p, s) => e === 'boss_rush_completed'
   }
 ];
 
