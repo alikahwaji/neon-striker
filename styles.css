@@ -170,9 +170,18 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.05);
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  /* `safe center` keeps the existing centred layout for small panels (pause,
+     level intro, etc.) but falls back to flex-start when content would
+     overflow the container — that prevents the top of the start menu's
+     title from being pushed above the viewport on short laptop screens
+     where it can't be reached by scrolling. */
+  justify-content: safe center;
   align-items: center;
   padding: 2rem;
+  /* Safety net: if a panel's content is still taller than the canvas, let
+     users scroll instead of silently clipping. The shop overlay sets
+     overflow-y:auto inline for this exact reason. */
+  overflow-y: auto;
   transition: opacity 0.4s ease, transform 0.4s ease;
 }
 
@@ -190,7 +199,11 @@ body {
 .game-title {
   font-family: 'Orbitron', sans-serif;
   font-weight: 900;
-  font-size: 3.8rem;
+  /* Was 3.8rem — at that size NEON\nSTRIKER (two lines × ~70 px ≈ 140 px)
+     pushed the start menu's content above the canvas top on ~768 px tall
+     viewports, so the "NEON" line was clipped entirely. 2.8rem still reads
+     as a hero title but keeps the whole brand visible at common sizes. */
+  font-size: 2.8rem;
   line-height: 0.95;
   letter-spacing: 0.15em;
   text-align: center;
@@ -203,7 +216,7 @@ body {
 }
 
 .logo-area {
-  margin-bottom: 2rem;
+  margin-bottom: 1.25rem; /* was 2rem — reclaim vertical space in start menu */
   text-align: center;
 }
 
@@ -295,9 +308,12 @@ body {
 
 /* Instructions HUD panel */
 .how-to-play {
-  margin-top: 3rem;
+  /* Was margin-top: 3rem + padding-top: 1.5rem — together that pushed the
+     SHIFT/EMP and P/PAUSE rows below the canvas bottom on ~768 px tall
+     viewports. Tightened so the full controls list fits inside the canvas. */
+  margin-top: 1.25rem;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
-  padding-top: 1.5rem;
+  padding-top: 0.75rem;
   width: 100%;
   max-width: 500px;
   text-align: center;
@@ -305,18 +321,18 @@ body {
 
 .how-to-play h3 {
   font-family: 'Orbitron', sans-serif;
-  font-size: 1rem;
+  font-size: 0.95rem;
   letter-spacing: 0.2em;
   color: var(--neon-yellow);
-  margin-bottom: 1rem;
+  margin-bottom: 0.6rem;
 }
 
 .controls-grid {
   display: grid;
   grid-template-columns: auto 1fr;
-  row-gap: 0.5rem;
+  row-gap: 0.35rem; /* was 0.5rem — denser without feeling cramped */
   column-gap: 1.5rem;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   text-align: left;
   max-width: 400px;
   margin: 0 auto;
