@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <!-- Load retro modern and high-tech typography -->
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Press+Start+2P&family=Share+Tech+Mono&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=6">
+  <link rel="stylesheet" href="styles.css?v=8">
 </head>
 <body>
 
@@ -175,13 +175,16 @@
         </div>
       </div>
 
-      <!-- Settings Menu -->
+      <!-- Settings Menu — 2-column grid for the 5 audio/visual settings,
+           with the cheat-code section spanning both columns at the bottom
+           in a compact horizontal layout. Previously single-column + tall
+           cheat block overflowed the canvas and cut off RETURN TO PORT. -->
       <div id="settings-menu" class="overlay-panel hidden">
         <h2 class="neon-title text-center select-none">SYSTEM PARAMETERS</h2>
-        
+
         <div class="settings-content">
           <div class="setting-item">
-            <label for="slider-music">SYNTH BGM VOLUME</label>
+            <label for="slider-music">🔊 SYNTH BGM VOLUME</label>
             <div class="slider-wrapper">
               <input type="range" id="slider-music" min="0" max="100" value="50">
               <span id="music-vol-val" class="slider-val">50%</span>
@@ -189,7 +192,7 @@
           </div>
 
           <div class="setting-item">
-            <label for="slider-sfx">TACTICAL SFX VOLUME</label>
+            <label for="slider-sfx">🎯 TACTICAL SFX VOLUME</label>
             <div class="slider-wrapper">
               <input type="range" id="slider-sfx" min="0" max="100" value="70">
               <span id="sfx-vol-val" class="slider-val">70%</span>
@@ -197,7 +200,7 @@
           </div>
 
           <div class="setting-item">
-            <label for="toggle-shake">SCREEN VIBRATION (SHAKE)</label>
+            <label for="toggle-shake">📳 SCREEN VIBRATION</label>
             <label class="switch">
               <input type="checkbox" id="toggle-shake" checked>
               <span class="slider round"></span>
@@ -205,7 +208,7 @@
           </div>
 
           <div class="setting-item">
-            <label for="toggle-scanlines">CRT SCANLINE STYLING</label>
+            <label for="toggle-scanlines">📺 CRT SCANLINES</label>
             <label class="switch">
               <input type="checkbox" id="toggle-scanlines" checked>
               <span class="slider round"></span>
@@ -213,20 +216,21 @@
           </div>
 
           <div class="setting-item">
-            <label for="toggle-bezel">CURVED CRT BEZEL</label>
+            <label for="toggle-bezel">🖼 CURVED BEZEL</label>
             <label class="switch">
               <input type="checkbox" id="toggle-bezel" checked>
               <span class="slider round"></span>
             </label>
           </div>
 
-          <div class="setting-item" style="border-top: 1px solid rgba(255, 255, 255, 0.1); padding-top: 1rem; margin-top: 1rem; flex-direction: column; align-items: stretch; gap: 0.5rem;">
-            <label for="cheat-input" style="font-size: 0.85rem; color: var(--neon-magenta); align-self: center;">ENTER RETRO SECRET CODE</label>
-            <div style="display: flex; gap: 0.5rem; justify-content: center; width: 100%;">
-              <input type="text" id="cheat-input" placeholder="e.g. SAUCER" style="background: #000; border: 1.5px solid var(--neon-magenta); color: var(--neon-yellow); font-family: 'Orbitron', sans-serif; font-weight: 900; font-size: 0.95rem; text-align: center; width: 160px; outline: none; border-radius: 4px; padding: 0.35rem 0; letter-spacing: 0.05em;">
-              <button id="btn-submit-cheat" class="btn btn-primary" style="margin: 0; padding: 0.35rem 1rem; font-size: 0.85rem; min-width: auto; height: auto;">APPLY</button>
-            </div>
-            <span id="cheat-msg" class="font-mono text-center text-xs" style="color: var(--neon-cyan); height: 16px; margin-top: 0.2rem; display: block;"></span>
+          <!-- Cheat-code console spans both grid columns. Single-row
+               layout: label + input + APPLY all inline. Status message
+               sits beneath without taking permanent vertical space. -->
+          <div class="setting-item cheat-section">
+            <label for="cheat-input" class="cheat-label">🎮 ENTER SECRET CODE</label>
+            <input type="text" id="cheat-input" class="cheat-input" placeholder="e.g. SAUCER" maxlength="20">
+            <button id="btn-submit-cheat" class="btn-cheat">APPLY</button>
+            <span id="cheat-msg" class="cheat-msg"></span>
           </div>
         </div>
 
