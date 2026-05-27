@@ -203,6 +203,10 @@ window.addEventListener('load', () => {
   canvas.width = CONFIG.width;
   canvas.height = CONFIG.height;
 
+  // Restore prior session's settings before any listeners wire up so the
+  // controls' visual state matches the values we just pushed into the game.
+  applyPersistedSettings(loadPersistedSettings());
+
   window.addEventListener('keydown', e => {
     if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
       e.preventDefault();
@@ -439,16 +443,19 @@ window.addEventListener('load', () => {
     const val = e.target.value;
     document.getElementById('music-vol-val').innerText = `${val}%`;
     GameAudio.setMusicVolume(val);
+    persistSettings();
   });
 
   sliderSfx.addEventListener('input', e => {
     const val = e.target.value;
     document.getElementById('sfx-vol-val').innerText = `${val}%`;
     GameAudio.setSfxVolume(val);
+    persistSettings();
   });
 
   toggleShake.addEventListener('change', e => {
     CONFIG.shakeEnabled = e.target.checked;
+    persistSettings();
   });
 
   toggleScanlines.addEventListener('change', e => {
@@ -458,6 +465,7 @@ window.addEventListener('load', () => {
     } else {
       lines.classList.add('scanlines-disabled');
     }
+    persistSettings();
   });
 
   const toggleBezel = document.getElementById('toggle-bezel');
@@ -469,9 +477,13 @@ window.addEventListener('load', () => {
       } else {
         container.classList.remove('crt-bezel-active');
       }
+      persistSettings();
     });
-    
-    // Set initial state
+
+    // Set initial state — only if persistence didn't already apply it.
+    // applyPersistedSettings sets both the checkbox and the class; only
+    // run this fallback when no settings were restored (toggleBezel.checked
+    // reflects the HTML 'checked' attribute on fresh sessions).
     const container = document.getElementById('game-container');
     if (toggleBezel.checked) {
       container.classList.add('crt-bezel-active');
@@ -489,9 +501,10 @@ window.addEventListener('load', () => {
       diffBtns.forEach(b => b.classList.remove('active'));
       e.target.classList.add('active');
       selectedDifficulty = e.target.getAttribute('data-diff');
-      
+
       GameAudio.playPowerUpSound();
-      
+      persistSettings();
+
       if (window.logAnalyticsEvent) {
         window.logAnalyticsEvent('select_difficulty', { difficulty: selectedDifficulty });
       }
@@ -505,9 +518,10 @@ window.addEventListener('load', () => {
       paintBtns.forEach(b => b.classList.remove('active'));
       e.target.classList.add('active');
       selectedSkin = e.target.getAttribute('data-skin');
-      
+
       GameAudio.playPowerUpSound();
-      
+      persistSettings();
+
       if (window.logAnalyticsEvent) {
         window.logAnalyticsEvent('select_skin', { skin: selectedSkin });
       }
@@ -522,7 +536,8 @@ window.addEventListener('load', () => {
   function applyCheat() {
     const code = cheatInput.value.trim().toLowerCase();
     if (!code) return;
-    
+
+    let recognised = true;
     if (code === 'saucer') {
       selectedSkin = 'saucer';
       paintBtns.forEach(b => b.classList.remove('active'));
@@ -545,10 +560,12 @@ window.addEventListener('load', () => {
       cheatMsg.innerText = 'CODENAME: SYSTEM CODE OVERRIDE!';
       GameAudio.playPowerUpSound();
     } else {
+      recognised = false;
       cheatMsg.style.color = 'var(--neon-red)';
       cheatMsg.innerText = 'ERROR: INVALID ACCESS CODE';
       GameAudio.playExplosionSound(0.5);
     }
+    if (recognised) persistSettings();
     cheatInput.value = '';
   }
   
@@ -565,3 +582,98 @@ window.addEventListener('load', () => {
 
   requestAnimationFrame(gameTick);
 });
+
+/* ----------------------------------------------------
+   SETTINGS PERSISTENCE
+   ---------------------------------------------------- */
+// Versioned key so future schema bumps don't crash on stale payloads.
+const SETTINGS_KEY = 'neon_striker_settings_v1';
+
+function loadPersistedSettings() {
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return (parsed && typeof parsed === 'object') ? parsed : null;
+  } catch (e) {
+    console.warn('Failed to load Neon Striker settings:', e);
+    return null;
+  }
+}
+
+function persistSettings() {
+  try {
+    const s = {
+      musicVol: parseInt(document.getElementById('slider-music').value, 10),
+      sfxVol: parseInt(document.getElementById('slider-sfx').value, 10),
+      shake: document.getElementById('toggle-shake').checked,
+      scanlines: document.getElementById('toggle-scanlines').checked,
+      bezel: (document.getElementById('toggle-bezel') || {}).checked,
+      difficulty: selectedDifficulty,
+      skin: selectedSkin,
+      cheats: { rainbow: cheatRainbow, god: cheatGod, matrix: cheatMatrix }
+    };
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
+  } catch (e) {
+    console.warn('Failed to persist Neon Striker settings:', e);
+  }
+}
+
+function applyPersistedSettings(s) {
+  if (!s) return;
+
+  // Volume sliders — push to the DOM and the audio engine.
+  if (typeof s.musicVol === 'number' && s.musicVol >= 0 && s.musicVol <= 100) {
+    document.getElementById('slider-music').value = s.musicVol;
+    document.getElementById('music-vol-val').innerText = `${s.musicVol}%`;
+    GameAudio.setMusicVolume(s.musicVol);
+  }
+  if (typeof s.sfxVol === 'number' && s.sfxVol >= 0 && s.sfxVol <= 100) {
+    document.getElementById('slider-sfx').value = s.sfxVol;
+    document.getElementById('sfx-vol-val').innerText = `${s.sfxVol}%`;
+    GameAudio.setSfxVolume(s.sfxVol);
+  }
+
+  // Toggles — checkbox state + side-effect on game/CSS class.
+  if (typeof s.shake === 'boolean') {
+    document.getElementById('toggle-shake').checked = s.shake;
+    CONFIG.shakeEnabled = s.shake;
+  }
+  if (typeof s.scanlines === 'boolean') {
+    document.getElementById('toggle-scanlines').checked = s.scanlines;
+    const lines = document.querySelector('.scanlines');
+    lines.classList.toggle('scanlines-disabled', !s.scanlines);
+  }
+  if (typeof s.bezel === 'boolean') {
+    const cb = document.getElementById('toggle-bezel');
+    if (cb) {
+      cb.checked = s.bezel;
+      document.getElementById('game-container').classList.toggle('crt-bezel-active', s.bezel);
+    }
+  }
+
+  // Difficulty — restore active class on the matching button.
+  if (s.difficulty && ['cadet', 'hero', 'elite'].includes(s.difficulty)) {
+    selectedDifficulty = s.difficulty;
+    document.querySelectorAll('.diff-btn').forEach(b => {
+      b.classList.toggle('active', b.getAttribute('data-diff') === s.difficulty);
+    });
+  }
+
+  // Skin — restore active class on the matching paint button (saucer has
+  // no button so the active-class toggle is a no-op for that one — the
+  // selectedSkin assignment below is what actually drives the rendering).
+  if (s.skin) {
+    selectedSkin = s.skin;
+    document.querySelectorAll('.paint-btn').forEach(b => {
+      b.classList.toggle('active', b.getAttribute('data-skin') === s.skin);
+    });
+  }
+
+  // Cheats — booleans only, no UI state to update (they manifest in-game).
+  if (s.cheats && typeof s.cheats === 'object') {
+    cheatRainbow = !!s.cheats.rainbow;
+    cheatGod = !!s.cheats.god;
+    cheatMatrix = !!s.cheats.matrix;
+  }
+}
