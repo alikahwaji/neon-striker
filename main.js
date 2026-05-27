@@ -428,13 +428,13 @@ function updateGame(dt) {
   // Update Projectiles
   for (let i = playerLasers.length - 1; i >= 0; i--) {
     const laser = playerLasers[i];
-    laser.update(true); // Player lasers are NOT slowed down by bullet-time
+    laser.update(true, dt); // Player lasers are NOT slowed down by bullet-time
     if (laser.isOutOfBounds()) playerLasers.splice(i, 1);
   }
 
   for (let i = enemyLasers.length - 1; i >= 0; i--) {
     const laser = enemyLasers[i];
-    laser.update(false); // Enemy lasers ARE slowed down by bullet-time
+    laser.update(false, dt); // Enemy lasers ARE slowed down by bullet-time
     if (laser.isOutOfBounds()) enemyLasers.splice(i, 1);
   }
 
@@ -448,7 +448,7 @@ function updateGame(dt) {
   // Update Asteroids
   for (let i = asteroids.length - 1; i >= 0; i--) {
     const ast = asteroids[i];
-    ast.update();
+    ast.update(dt);
 
     if (ast.y > CONFIG.height + 40) {
       asteroids.splice(i, 1);
@@ -640,7 +640,14 @@ function updateGame(dt) {
     }
   }
 
-  // Update Floating Texts
+  // Update Floating Texts. Cap to MAX_FLOATING_TEXTS first — boss damage
+  // windows (Triple Shot + Rapid Fire + piercing on Unicron's 300 HP) used
+  // to push 200+ texts on screen, each costing a save/restore + shadowed
+  // fillText per frame. Capping the oldest keeps the readable spam bounded.
+  const MAX_FLOATING_TEXTS = 30;
+  if (floatingTexts.length > MAX_FLOATING_TEXTS) {
+    floatingTexts.splice(0, floatingTexts.length - MAX_FLOATING_TEXTS);
+  }
   for (let i = floatingTexts.length - 1; i >= 0; i--) {
     const txt = floatingTexts[i];
     txt.update();
@@ -657,7 +664,7 @@ function updateGame(dt) {
   // Update Particles
   for (let i = particles.length - 1; i >= 0; i--) {
     const p = particles[i];
-    p.update();
+    p.update(dt);
     if (p.alpha <= 0) particles.splice(i, 1);
   }
 
