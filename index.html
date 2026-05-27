@@ -100,8 +100,10 @@
 
         <div class="menu-actions">
           <button id="btn-start" class="btn btn-primary select-none">INITIATE GAME</button>
+          <button id="btn-daily" class="btn btn-daily select-none">🌙 DAILY CHALLENGE</button>
           <button id="btn-settings" class="btn btn-secondary select-none">SYSTEM PARAMETERS</button>
           <button id="btn-scores" class="btn btn-secondary select-none">LEADERBOARD</button>
+          <button id="btn-achievements" class="btn btn-secondary select-none">ACHIEVEMENTS</button>
         </div>
 
         <div class="how-to-play">
@@ -195,10 +197,37 @@
         <button id="btn-settings-back" class="btn btn-secondary select-none">RETURN TO PORT</button>
       </div>
 
+      <!-- Achievements Panel Overlay -->
+      <div id="achievements-menu" class="overlay-panel hidden">
+        <h2 class="neon-title text-center select-none">PILOT ACHIEVEMENTS</h2>
+        <p id="achievements-progress" class="font-mono text-center select-none" style="color: var(--neon-cyan); letter-spacing: 0.15em; margin-bottom: 1rem; font-size: 0.85rem;">0 / 0 UNLOCKED</p>
+
+        <div id="achievements-grid" class="achievements-grid">
+          <!-- Cards injected by ui.js renderAchievementsUI() -->
+        </div>
+
+        <button id="btn-achievements-back" class="btn btn-secondary select-none">RETURN TO PORT</button>
+      </div>
+
+      <!-- Achievement Unlock Toast — top-center transient notification -->
+      <div id="achievement-toast" class="achievement-toast hidden">
+        <span class="ach-icon" id="ach-toast-icon">🏆</span>
+        <div class="ach-text">
+          <div class="ach-label">ACHIEVEMENT UNLOCKED</div>
+          <div class="ach-name" id="ach-toast-name">—</div>
+        </div>
+      </div>
+
       <!-- Leaderboard Board Overlay -->
       <div id="leaderboard-menu" class="overlay-panel hidden">
         <h2 class="neon-title text-center select-none">PILOT RECORDS</h2>
-        
+
+        <!-- Scope toggle — global all-time vs today's daily challenge -->
+        <div class="leaderboard-tabs">
+          <button id="tab-scores-all" class="lb-tab active" data-scope="all">🌐 ALL TIME</button>
+          <button id="tab-scores-daily" class="lb-tab" data-scope="daily">🌙 TODAY</button>
+        </div>
+
         <div class="leaderboard-container">
           <table class="leaderboard-table">
             <thead>
@@ -384,6 +413,7 @@
   <script src="entities.js"></script>
   <script src="render.js"></script>
   <script src="collisions.js"></script>
+  <script src="achievements.js"></script>
   <script src="main.js"></script>
   <script src="ui.js"></script>
 </body>

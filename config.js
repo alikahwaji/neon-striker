@@ -42,6 +42,47 @@ let cheatRainbow = false;
 let cheatGod = false;
 let cheatMatrix = false;
 
+// Daily Challenge globals — when dailyMode is true, Math.random is
+// overridden with a Mulberry32 PRNG seeded by today's UTC date so every
+// player faces the same enemy spawn timings, asteroid drops, and power-up
+// rolls. Difficulty is locked to 'hero'. dailyDate holds the seed key
+// (YYYY-MM-DD UTC) so scores can be tagged correctly on submission.
+let dailyMode = false;
+let dailyDate = null;
+// Stash the original Math.random so deactivateDailySeed() can restore it
+// cleanly when the run ends or the player aborts.
+const realMathRandom = Math.random;
+
+// Compute the current UTC date as YYYY-MM-DD. Used as both the PRNG seed
+// and the Firestore document field for daily leaderboard scoping.
+function todayDateUTC() {
+  const d = new Date();
+  return d.getUTCFullYear() + '-' +
+    String(d.getUTCMonth() + 1).padStart(2, '0') + '-' +
+    String(d.getUTCDate()).padStart(2, '0');
+}
+
+// Mulberry32 PRNG — small, fast, decent distribution. Seeded by hashing
+// the date string with FNV-1a so seeds differ meaningfully day-to-day.
+function activateDailySeed(seedStr) {
+  let h = 2166136261;
+  for (let i = 0; i < seedStr.length; i++) {
+    h ^= seedStr.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  let seed = h >>> 0;
+  Math.random = function dailySeededRandom() {
+    seed = (seed + 0x6D2B79F5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function deactivateDailySeed() {
+  Math.random = realMathRandom;
+}
+
 // Upgrade Levels & Player Core Stats
 let scrapCredits = 0;
 let maxHealth = 100;

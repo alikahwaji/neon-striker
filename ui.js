@@ -51,20 +51,74 @@ function checkNewHighScore(scoreVal) {
   return scoreVal > board[board.length - 1].score;
 }
 
+// Currently-selected scope; flipped by the tab buttons. 'all' shows the
+// global all-time leaderboard, 'daily' shows today's UTC daily challenge.
+let leaderboardScope = 'all';
+
+function setLeaderboardScope(scope) {
+  leaderboardScope = scope === 'daily' ? 'daily' : 'all';
+  document.querySelectorAll('.lb-tab').forEach(t => {
+    t.classList.toggle('active', t.getAttribute('data-scope') === leaderboardScope);
+  });
+  updateLeaderboardUI();
+}
+
 async function updateLeaderboardUI() {
   const body = document.getElementById('leaderboard-body');
   body.innerHTML = '';
-  
-  // If Firebase is enabled, attempt to load global scores
+
+  // Loading shimmer.
+  body.innerHTML = `
+    <tr>
+      <td colspan="3" class="text-center font-mono neon-blue blinking-text" style="padding: 2.5rem 0;">
+        ${leaderboardScope === 'daily' ? '🌙 LOADING TODAY\'S RUNS...' : '🌐 SYNCING SECTOR ARCHIVES...'}
+      </td>
+    </tr>
+  `;
+
+  // Daily scope: query the daily Firestore collection filtered by today's
+  // UTC date. There's no localStorage fallback for daily because it's an
+  // inherently networked competition — fall back to an empty-state message.
+  if (leaderboardScope === 'daily') {
+    if (!window.firebaseEnabled) {
+      body.innerHTML = '';
+      const tr = document.createElement('tr');
+      const td = document.createElement('td');
+      td.colSpan = 3;
+      td.className = 'text-center font-mono';
+      td.style.padding = '2.5rem 0';
+      td.style.color = '#b0aebf';
+      td.textContent = 'Daily Challenge requires online connection.';
+      tr.append(td);
+      body.append(tr);
+      return;
+    }
+    try {
+      const dailyScores = await window.getDailyHighScores(todayDateUTC());
+      body.innerHTML = '';
+      if (dailyScores && dailyScores.length > 0) {
+        dailyScores.forEach((record, index) => {
+          renderLeaderboardRow(body, index, `🌙 ${record.name}`, parseInt(record.score, 10) || 0);
+        });
+      } else {
+        const tr = document.createElement('tr');
+        const td = document.createElement('td');
+        td.colSpan = 3;
+        td.className = 'text-center font-mono';
+        td.style.padding = '2.5rem 0';
+        td.style.color = '#b0aebf';
+        td.textContent = 'No daily runs yet — be the first pilot today.';
+        tr.append(td);
+        body.append(tr);
+      }
+    } catch (e) {
+      console.warn('Failed to load daily scores:', e);
+    }
+    return;
+  }
+
+  // All-time scope: existing Firebase + local fallback path.
   if (window.firebaseEnabled) {
-    body.innerHTML = `
-      <tr>
-        <td colspan="3" class="text-center font-mono neon-blue blinking-text" style="padding: 2.5rem 0;">
-          🌐 SYNCING SECTOR ARCHIVES...
-        </td>
-      </tr>
-    `;
-    
     try {
       const globalScores = await window.getGlobalHighScores();
       if (globalScores && globalScores.length > 0) {
@@ -76,14 +130,14 @@ async function updateLeaderboardUI() {
           // interpolation into innerHTML, to neutralise stored XSS payloads.
           renderLeaderboardRow(body, index, `🌐 ${record.name}`, parseInt(record.score, 10) || 0);
         });
-        return; // Success! We successfully rendered global scores.
+        return;
       }
     } catch (e) {
       console.warn("Failed to load Firebase scores, falling back to browser archives:", e);
     }
   }
 
-  // Local Backup Fallback
+  // Local Backup Fallback (offline / Firebase disabled).
   const board = getLeaderboard();
   body.innerHTML = '';
   board.forEach((record, index) => {
@@ -181,14 +235,12 @@ function updateHangarUI() {
 function exitHangarAndLaunch() {
   document.getElementById('shop-menu').classList.add('hidden');
   inShop = false;
-  
-  // Sector Level advance!
+
+  // Sector Level advance — past Level 20 we drop into endless mode where
+  // generateEndlessLevel(n) in main.js synthesises sector data on demand.
+  // No upper cap; the player decides when their run ends.
   currentLevel++;
-  if (currentLevel > 20) {
-    // Campaign victory loop reset harder
-    currentLevel = 1;
-  }
-  
+
   loadAndStartLevel();
 }
 
@@ -237,6 +289,26 @@ window.addEventListener('load', () => {
 
   // UI Button listener hooks
   document.getElementById('btn-start').addEventListener('click', () => {
+    // Clean handoff: if the player came from daily mode and is bouncing
+    // back to the start menu, restore real Math.random and clear flags.
+    dailyMode = false;
+    dailyDate = null;
+    deactivateDailySeed();
+    startGame();
+  });
+
+  document.getElementById('btn-daily').addEventListener('click', () => {
+    // Daily Challenge: seed Math.random with today's UTC date so every
+    // pilot today faces the same spawn timings, asteroid drops, etc.
+    // Difficulty is locked to Hero for fairness.
+    dailyMode = true;
+    dailyDate = todayDateUTC();
+    activateDailySeed(dailyDate);
+    selectedDifficulty = 'hero';
+    document.querySelectorAll('.diff-btn').forEach(b => {
+      b.classList.toggle('active', b.getAttribute('data-diff') === 'hero');
+    });
+    if (window.Achievements) Achievements.notify('daily_started', { date: dailyDate });
     startGame();
   });
 
@@ -251,7 +323,9 @@ window.addEventListener('load', () => {
   });
 
   document.getElementById('btn-scores').addEventListener('click', () => {
-    updateLeaderboardUI();
+    // Reset to All-Time tab on every panel open so the player starts from
+    // the familiar global view.
+    setLeaderboardScope('all');
     document.getElementById('start-menu').classList.add('hidden');
     document.getElementById('leaderboard-menu').classList.remove('hidden');
   });
@@ -260,6 +334,30 @@ window.addEventListener('load', () => {
     document.getElementById('leaderboard-menu').classList.add('hidden');
     document.getElementById('start-menu').classList.remove('hidden');
   });
+
+  document.querySelectorAll('.lb-tab').forEach(tab => {
+    tab.addEventListener('click', e => {
+      setLeaderboardScope(e.target.getAttribute('data-scope'));
+    });
+  });
+
+  document.getElementById('btn-achievements').addEventListener('click', () => {
+    renderAchievementsUI();
+    document.getElementById('start-menu').classList.add('hidden');
+    document.getElementById('achievements-menu').classList.remove('hidden');
+  });
+
+  document.getElementById('btn-achievements-back').addEventListener('click', () => {
+    document.getElementById('achievements-menu').classList.add('hidden');
+    document.getElementById('start-menu').classList.remove('hidden');
+  });
+
+  // Subscribe to achievement unlocks once. The Achievements module dispatches
+  // every newly-unlocked def to all listeners; we render a transient toast +
+  // chime so the player notices mid-game.
+  if (window.Achievements) {
+    Achievements.on('unlocked', def => showAchievementToast(def));
+  }
 
   document.getElementById('btn-restart').addEventListener('click', () => {
     startGame();
@@ -270,6 +368,11 @@ window.addEventListener('load', () => {
   });
 
   document.getElementById('btn-main-menu').addEventListener('click', () => {
+    // Returning to the main menu always exits daily mode, so the next
+    // INITIATE GAME starts a normal campaign with real RNG.
+    dailyMode = false;
+    dailyDate = null;
+    deactivateDailySeed();
     document.getElementById('game-over-screen').classList.add('hidden');
     document.getElementById('start-menu').classList.remove('hidden');
   });
@@ -284,6 +387,10 @@ window.addEventListener('load', () => {
 
   document.getElementById('btn-pause-abort').addEventListener('click', () => {
     gameActive = false;
+    // Aborting mid-run also exits daily mode cleanly.
+    dailyMode = false;
+    dailyDate = null;
+    deactivateDailySeed();
     document.getElementById('pause-screen').classList.add('hidden');
     document.getElementById('hud').classList.add('hidden');
     document.getElementById('start-menu').classList.remove('hidden');
@@ -294,13 +401,24 @@ window.addEventListener('load', () => {
     const input = document.getElementById('pilot-name');
     const name = input.value.trim() || 'ACE';
     saveHighScore(name, score);
+
+    // Daily mode: also dual-write to the dated leaderboard collection so
+    // the score competes against today's pilots only, and notify the
+    // achievement system so 'Daily Pilot' can fire.
+    if (dailyMode && dailyDate && window.saveDailyHighScore) {
+      window.saveDailyHighScore(name, score, dailyDate);
+      if (window.Achievements) Achievements.notify('daily_score_submitted', { date: dailyDate });
+    }
+
     if (window.logAnalyticsEvent) {
-      window.logAnalyticsEvent('submit_score', { pilot: name, score: score });
+      window.logAnalyticsEvent('submit_score', { pilot: name, score: score, daily: !!dailyMode });
     }
     document.getElementById('high-score-input-container').classList.add('hidden');
-    
+
     document.getElementById('game-over-screen').classList.add('hidden');
-    updateLeaderboardUI();
+    // If the player just submitted a daily score, open the leaderboard on
+    // the Today tab so they see their rank immediately.
+    setLeaderboardScope(dailyMode ? 'daily' : 'all');
     document.getElementById('leaderboard-menu').classList.remove('hidden');
   });
 
@@ -317,7 +435,8 @@ window.addEventListener('load', () => {
     if (scrapCredits >= cost && lvl < 5) {
       scrapCredits -= cost;
       playerUpgrades.speed++;
-      
+
+      if (window.Achievements) Achievements.notify('upgrade_purchased', { type: 'speed' });
       if (window.logAnalyticsEvent) {
         window.logAnalyticsEvent('purchase_upgrade', { type: 'speed', level: playerUpgrades.speed });
       }
@@ -337,7 +456,8 @@ window.addEventListener('load', () => {
     if (scrapCredits >= cost && lvl < 5) {
       scrapCredits -= cost;
       playerUpgrades.shield++;
-      
+
+      if (window.Achievements) Achievements.notify('upgrade_purchased', { type: 'shield' });
       if (window.logAnalyticsEvent) {
         window.logAnalyticsEvent('purchase_upgrade', { type: 'shield', level: playerUpgrades.shield });
       }
@@ -358,7 +478,8 @@ window.addEventListener('load', () => {
     if (scrapCredits >= cost && lvl < 5) {
       scrapCredits -= cost;
       playerUpgrades.cooldown++;
-      
+
+      if (window.Achievements) Achievements.notify('upgrade_purchased', { type: 'cooldown' });
       if (window.logAnalyticsEvent) {
         window.logAnalyticsEvent('purchase_upgrade', { type: 'cooldown', level: playerUpgrades.cooldown });
       }
@@ -377,7 +498,8 @@ window.addEventListener('load', () => {
     if (scrapCredits >= cost && playerUpgrades.homing === 0) {
       scrapCredits -= cost;
       playerUpgrades.homing = 1;
-      
+
+      if (window.Achievements) Achievements.notify('upgrade_purchased', { type: 'homing' });
       if (window.logAnalyticsEvent) {
         window.logAnalyticsEvent('purchase_upgrade', { type: 'homing', level: playerUpgrades.homing });
       }
@@ -393,7 +515,8 @@ window.addEventListener('load', () => {
     if (scrapCredits >= cost && playerUpgrades.wingman === 0) {
       scrapCredits -= cost;
       playerUpgrades.wingman = 1;
-      
+
+      if (window.Achievements) Achievements.notify('upgrade_purchased', { type: 'wingman' });
       if (window.logAnalyticsEvent) {
         window.logAnalyticsEvent('purchase_upgrade', { type: 'wingman', level: playerUpgrades.wingman });
       }
@@ -409,7 +532,8 @@ window.addEventListener('load', () => {
     if (scrapCredits >= cost && playerUpgrades.emp === 0) {
       scrapCredits -= cost;
       playerUpgrades.emp = 1;
-      
+
+      if (window.Achievements) Achievements.notify('upgrade_purchased', { type: 'emp' });
       if (window.logAnalyticsEvent) {
         window.logAnalyticsEvent('purchase_upgrade', { type: 'emp', level: playerUpgrades.emp });
       }
@@ -425,7 +549,8 @@ window.addEventListener('load', () => {
     if (scrapCredits >= cost && playerUpgrades.magnet === 0) {
       scrapCredits -= cost;
       playerUpgrades.magnet = 1;
-      
+
+      if (window.Achievements) Achievements.notify('upgrade_purchased', { type: 'magnet' });
       if (window.logAnalyticsEvent) {
         window.logAnalyticsEvent('purchase_upgrade', { type: 'magnet', level: playerUpgrades.magnet });
       }
@@ -527,6 +652,7 @@ window.addEventListener('load', () => {
       e.target.classList.add('active');
       selectedSkin = e.target.getAttribute('data-skin');
 
+      if (window.Achievements) Achievements.notify('skin_selected', { skin: selectedSkin });
       GameAudio.playPowerUpSound();
       persistSettings();
 
@@ -573,7 +699,10 @@ window.addEventListener('load', () => {
       cheatMsg.innerText = 'ERROR: INVALID ACCESS CODE';
       GameAudio.playExplosionSound(0.5);
     }
-    if (recognised) persistSettings();
+    if (recognised) {
+      persistSettings();
+      if (window.Achievements) Achievements.notify('cheat_entered', { code });
+    }
     cheatInput.value = '';
   }
   
@@ -590,6 +719,69 @@ window.addEventListener('load', () => {
 
   requestAnimationFrame(gameTick);
 });
+
+/* ----------------------------------------------------
+   ACHIEVEMENTS PANEL + TOAST
+   ---------------------------------------------------- */
+// Build the achievements grid each time the panel opens so unlock state
+// reflects the latest Achievements.notify() calls. Locked cards render
+// greyed-out so progress is visible at a glance.
+function renderAchievementsUI() {
+  if (!window.Achievements) return;
+  const defs = Achievements.getDefs();
+  const unlocked = Achievements.getUnlocked();
+  const host = document.getElementById('achievements-grid');
+  while (host.firstChild) host.removeChild(host.firstChild);
+
+  defs.forEach(def => {
+    const isUnlocked = unlocked.has(def.id);
+    const card = document.createElement('div');
+    card.className = 'ach-card ' + (isUnlocked ? 'unlocked' : 'locked');
+
+    const header = document.createElement('div');
+    header.className = 'ach-header';
+    const icon = document.createElement('span');
+    icon.className = 'ach-icon';
+    // Locked cards show a question mark so the metadata for unmet
+    // achievements is hinted at but not fully spoiled.
+    icon.textContent = isUnlocked ? def.icon : '❓';
+    const name = document.createElement('span');
+    name.className = 'ach-name';
+    name.textContent = def.name;
+    header.append(icon, name);
+
+    const desc = document.createElement('div');
+    desc.className = 'ach-desc';
+    desc.textContent = def.description;
+
+    card.append(header, desc);
+    host.appendChild(card);
+  });
+
+  const progress = document.getElementById('achievements-progress');
+  if (progress) progress.textContent = `${unlocked.size} / ${defs.length} UNLOCKED`;
+}
+
+// Per-toast hide timer so consecutive unlocks queue and replace cleanly
+// instead of fighting each other for screen time.
+let achToastTimer = null;
+function showAchievementToast(def) {
+  const toast = document.getElementById('achievement-toast');
+  if (!toast) return;
+  document.getElementById('ach-toast-icon').textContent = def.icon || '🏆';
+  document.getElementById('ach-toast-name').textContent = def.name;
+  toast.classList.remove('hidden');
+  // Subtle audio confirmation — reuse the existing power-up chime to keep
+  // the synth palette consistent.
+  if (window.GameAudio && typeof GameAudio.playPowerUpSound === 'function') {
+    GameAudio.playPowerUpSound();
+  }
+  if (achToastTimer) clearTimeout(achToastTimer);
+  achToastTimer = setTimeout(() => {
+    toast.classList.add('hidden');
+    achToastTimer = null;
+  }, 4000);
+}
 
 /* ----------------------------------------------------
    SETTINGS PERSISTENCE
