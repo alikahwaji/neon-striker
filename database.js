@@ -2,7 +2,7 @@
 // Firebase Web SDK integration for global high scores database in NEON STRIKER
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-app.js";
-import { getFirestore, collection, addDoc, getDocs, query, orderBy, limit, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-firestore.js";
+import { getFirestore, collection, addDoc, getDocs, query, orderBy, limit, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-firestore.js";
 import { getAnalytics, logEvent } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-analytics.js";
 
 // Active Firebase Configuration Credentials
@@ -81,6 +81,49 @@ window.saveGlobalHighScore = async function(name, score) {
   } catch (error) {
     console.error("Error saving score to Firebase Firestore:", error);
     return false;
+  }
+};
+
+// Daily Challenge leaderboard — separate collection so the global all-time
+// view stays uncluttered. Documents carry a `date` field (UTC YYYY-MM-DD)
+// so the query can filter to today's competitors only.
+window.saveDailyHighScore = async function(name, score, dateStr) {
+  if (!enabled || !db) return false;
+
+  try {
+    await addDoc(collection(db, "leaderboard_daily"), {
+      name: name.toUpperCase().slice(0, 18),
+      score: parseInt(score, 10) || 0,
+      date: dateStr,
+      timestamp: serverTimestamp()
+    });
+    console.log(`Saved Daily Score (${dateStr}): ${name} - ${score}`);
+    return true;
+  } catch (error) {
+    console.error("Error saving daily score to Firestore:", error);
+    return false;
+  }
+};
+
+window.getDailyHighScores = async function(dateStr) {
+  if (!enabled || !db) return null;
+
+  try {
+    const q = query(
+      collection(db, "leaderboard_daily"),
+      where("date", "==", dateStr),
+      orderBy("score", "desc"),
+      limit(8)
+    );
+    const querySnapshot = await getDocs(q);
+    const scores = [];
+    querySnapshot.forEach((doc) => {
+      scores.push(doc.data());
+    });
+    return scores;
+  } catch (error) {
+    console.error("Error loading daily scores from Firestore:", error);
+    return null;
   }
 };
 

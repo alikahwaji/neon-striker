@@ -100,6 +100,7 @@
 
         <div class="menu-actions">
           <button id="btn-start" class="btn btn-primary select-none">INITIATE GAME</button>
+          <button id="btn-daily" class="btn btn-daily select-none">🌙 DAILY CHALLENGE</button>
           <button id="btn-settings" class="btn btn-secondary select-none">SYSTEM PARAMETERS</button>
           <button id="btn-scores" class="btn btn-secondary select-none">LEADERBOARD</button>
           <button id="btn-achievements" class="btn btn-secondary select-none">ACHIEVEMENTS</button>
@@ -220,7 +221,13 @@
       <!-- Leaderboard Board Overlay -->
       <div id="leaderboard-menu" class="overlay-panel hidden">
         <h2 class="neon-title text-center select-none">PILOT RECORDS</h2>
-        
+
+        <!-- Scope toggle — global all-time vs today's daily challenge -->
+        <div class="leaderboard-tabs">
+          <button id="tab-scores-all" class="lb-tab active" data-scope="all">🌐 ALL TIME</button>
+          <button id="tab-scores-daily" class="lb-tab" data-scope="daily">🌙 TODAY</button>
+        </div>
+
         <div class="leaderboard-container">
           <table class="leaderboard-table">
             <thead>

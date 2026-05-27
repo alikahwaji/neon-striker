@@ -490,6 +490,62 @@ body {
   transform: translateY(1px);
 }
 
+/* Daily Challenge button — distinct moon-yellow accent so it reads
+   as a separate game mode at a glance, not 'just another menu item'. */
+.btn-daily {
+  color: var(--neon-yellow);
+  border-color: var(--neon-yellow);
+  box-shadow: 0 0 10px rgba(255, 234, 0, 0.25);
+  text-shadow: 0 0 6px var(--neon-yellow);
+}
+
+.btn-daily:hover {
+  background: var(--neon-yellow);
+  color: #000;
+  box-shadow: 0 0 25px var(--neon-yellow);
+  text-shadow: none;
+  transform: translateY(-2px);
+}
+
+.btn-daily:active {
+  transform: translateY(1px);
+}
+
+/* Leaderboard scope tabs (All Time / Today's Daily) — sit just below
+   the panel title. Active tab highlights with the daily-yellow accent. */
+.leaderboard-tabs {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.lb-tab {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #b0aebf;
+  padding: 0.35rem 0.9rem;
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 700;
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.lb-tab:hover {
+  color: #fff;
+  border-color: var(--neon-cyan);
+}
+
+.lb-tab.active {
+  background: var(--neon-yellow);
+  color: #000;
+  border-color: var(--neon-yellow);
+  box-shadow: 0 0 8px rgba(255, 234, 0, 0.5);
+}
+
 /* Instructions HUD panel */
 .how-to-play {
   /* Was margin-top: 3rem + padding-top: 1.5rem — together that pushed the

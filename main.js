@@ -693,9 +693,11 @@ function showGameOverScreen() {
     inputContainer.classList.add('hidden');
   }
 
-  // Handle Continue button visibility
+  // Handle Continue button visibility — disabled in daily mode so every
+  // pilot's score reflects a single uninterrupted attempt against the
+  // same seed.
   const btnContinue = document.getElementById('btn-continue');
-  if (currentLevel > 1 && selectedDifficulty !== 'elite') {
+  if (currentLevel > 1 && selectedDifficulty !== 'elite' && !dailyMode) {
     btnContinue.innerText = `CONTINUE SECTOR ${currentLevel}`;
     btnContinue.classList.remove('hidden');
   } else {
@@ -703,6 +705,12 @@ function showGameOverScreen() {
   }
 
   document.getElementById('game-over-screen').classList.remove('hidden');
+
+  // Restore real Math.random the moment the run ends so menu-side rolls
+  // (paint-shop hue cycling, particle init for the next run) aren't tied
+  // to the daily seed. dailyMode flag stays true until the player picks
+  // a non-daily action — the score submission still tags as daily.
+  if (dailyMode) deactivateDailySeed();
 }
 
 /* ----------------------------------------------------
