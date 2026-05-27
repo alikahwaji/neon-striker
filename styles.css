@@ -115,6 +115,129 @@ body {
   pointer-events: none;
 }
 
+/* ----------------------------------------------------
+   NEON SIDE DECORATIONS — pillarbox margin embellishments
+   ----------------------------------------------------
+   On widescreen viewports the 4:3 game container leaves vertical
+   black pillarbox bars on either side. These pure-CSS embellishments
+   (vertical neon bars, rotating diamonds, horizontal stripes) fill
+   that dead space with on-brand synthwave decor. Hidden via media
+   query whenever the viewport is too narrow to support a pillarbox. */
+.neon-side-decor {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  width: 170px;
+  z-index: 2;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.side-left { left: 0; }
+.side-right { right: 0; transform: scaleX(-1); }
+
+/* Vertical glowing bar — the spine of each decoration cluster. */
+.neon-bar {
+  position: absolute;
+  top: 12vh;
+  bottom: 12vh;
+  left: 50%;
+  width: 2px;
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    var(--neon-magenta) 25%,
+    var(--neon-blue) 75%,
+    transparent 100%
+  );
+  box-shadow: 0 0 14px rgba(255, 0, 170, 0.55),
+              0 0 28px rgba(0, 240, 255, 0.35);
+  animation: neon-bar-pulse 3.5s ease-in-out infinite alternate;
+}
+
+/* Rotating diamond shapes positioned at three heights along the bar. */
+.neon-diamond {
+  position: absolute;
+  left: 50%;
+  width: 28px;
+  height: 28px;
+  margin-left: -14px;
+  border: 2px solid var(--neon-blue);
+  background: rgba(0, 240, 255, 0.06);
+  box-shadow: 0 0 14px var(--neon-blue),
+              inset 0 0 8px rgba(0, 240, 255, 0.4);
+  transform: rotate(45deg);
+  animation: neon-diamond-spin 8s linear infinite;
+}
+
+.neon-diamond.d-top {
+  top: 22%;
+  border-color: var(--neon-magenta);
+  box-shadow: 0 0 14px var(--neon-magenta),
+              inset 0 0 8px rgba(255, 0, 170, 0.4);
+}
+
+.neon-diamond.d-mid {
+  top: 48%;
+  width: 36px;
+  height: 36px;
+  margin-left: -18px;
+  border-color: var(--neon-yellow);
+  box-shadow: 0 0 16px var(--neon-yellow),
+              inset 0 0 10px rgba(255, 234, 0, 0.4);
+  animation-duration: 11s;
+  animation-direction: reverse;
+}
+
+.neon-diamond.d-bot {
+  bottom: 22%;
+  border-color: var(--neon-green);
+  box-shadow: 0 0 14px var(--neon-green),
+              inset 0 0 8px rgba(57, 255, 20, 0.4);
+  animation-duration: 9s;
+}
+
+/* Horizontal stripes — bookend the cluster top and bottom. */
+.neon-stripe {
+  position: absolute;
+  left: 20%;
+  right: 20%;
+  height: 2px;
+  background: linear-gradient(to right, transparent, var(--neon-purple), transparent);
+  box-shadow: 0 0 8px var(--neon-purple);
+}
+
+.neon-stripe.s-top { top: 9vh; }
+.neon-stripe.s-bot { bottom: 9vh; }
+
+@keyframes neon-bar-pulse {
+  from {
+    opacity: 0.55;
+    box-shadow: 0 0 8px rgba(255, 0, 170, 0.4),
+                0 0 18px rgba(0, 240, 255, 0.25);
+  }
+  to {
+    opacity: 1;
+    box-shadow: 0 0 18px rgba(255, 0, 170, 0.7),
+                0 0 36px rgba(0, 240, 255, 0.5);
+  }
+}
+
+@keyframes neon-diamond-spin {
+  from { transform: rotate(45deg); }
+  to { transform: rotate(405deg); }
+}
+
+/* Hide the decorations when the viewport isn't wide enough to host a
+   pillarbox — at 4:3 the game container fills width × 3/4. If the
+   viewport width is less than roughly 1.45× the height, there isn't
+   meaningful side-bar real estate, and the decorations would overlap
+   the playfield. Threshold picked so common laptop widths (1366+)
+   trigger the decor, narrower windows hide it. */
+@media (max-aspect-ratio: 1.45/1) {
+  .neon-side-decor { display: none; }
+}
+
 /* Combo multiplier chip — appears in the top HUD bar only when the
    player is in a chain (×2 or higher). Pulses to draw the eye and
    uses the daily-yellow accent so it reads as a special-mode boost. */
@@ -731,9 +854,10 @@ body {
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   padding-top: 0.75rem;
   width: 100%;
-  /* Widened from 500px so the horizontal .controls-grid can fit all four
-     control items on one or two rows without wrapping into more. */
-  max-width: 680px;
+  /* Widened 680 -> 900 so all FOUR control items (THRUSTERS, FIRE LASER,
+     EMP, PAUSE) lay out in a single horizontal row at desktop widths
+     instead of wrapping the lone P/PAUSE onto a second row. */
+  max-width: 900px;
   text-align: center;
 }
 

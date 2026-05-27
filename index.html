@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <!-- Load retro modern and high-tech typography -->
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Press+Start+2P&family=Share+Tech+Mono&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=4">
+  <link rel="stylesheet" href="styles.css?v=5">
 </head>
 <body>
 
@@ -19,6 +19,29 @@
     <!-- Retro Scanning Lines & Vignette Effect -->
     <div class="scanlines"></div>
     <div class="crt-glare"></div>
+
+    <!-- Neon Side Decorations — only visible on viewports wider than the
+         4:3 game container (i.e. when pillarbox bars are present). Pure
+         CSS, no image assets. Each side has:
+           * a vertical glowing line that pulses slowly
+           * three rotating diamond shapes at different heights
+           * a horizontal stripe near the top + bottom -->
+    <div class="neon-side-decor side-left" aria-hidden="true">
+      <div class="neon-bar"></div>
+      <div class="neon-diamond d-top"></div>
+      <div class="neon-diamond d-mid"></div>
+      <div class="neon-diamond d-bot"></div>
+      <div class="neon-stripe s-top"></div>
+      <div class="neon-stripe s-bot"></div>
+    </div>
+    <div class="neon-side-decor side-right" aria-hidden="true">
+      <div class="neon-bar"></div>
+      <div class="neon-diamond d-top"></div>
+      <div class="neon-diamond d-mid"></div>
+      <div class="neon-diamond d-bot"></div>
+      <div class="neon-stripe s-top"></div>
+      <div class="neon-stripe s-bot"></div>
+    </div>
 
     <!-- Quick-mute (M) indicator — shown only while audio is muted -->
     <div id="mute-indicator" class="mute-indicator hidden">🔇 MUTED</div>
@@ -138,7 +161,7 @@
             </div>
             <div class="control-item">
               <span class="keys"><span class="key">E</span><span class="key-sep">/</span><span class="key">SHIFT</span></span>
-              <span class="action">EMP SHOCKWAVE</span>
+              <span class="action">EMP</span>
             </div>
             <div class="control-item">
               <span class="keys"><span class="key">P</span></span>
