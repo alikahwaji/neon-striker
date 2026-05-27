@@ -217,6 +217,38 @@ function generateEndlessLevel(n) {
   };
 }
 
+/* ----------------------------------------------------
+   ESCAPE-DAMAGE FEEDBACK
+   ----------------------------------------------------
+   Asteroids and enemies that slip past the bottom of the screen used
+   to silently deduct HP — no on-screen indicator at all, leading to
+   confused 'why did my shield drop?' moments (especially on Level 2's
+   asteroid storm). This helper fires both a floating warning text at
+   the escape position AND a brief red glow pulse along the bottom edge
+   of the canvas via CSS, so the player understands what's happening. */
+function notifyBaseHit(escapeX, amount) {
+  // Floating warning anchored just inside the bottom edge of the canvas
+  // at the escape's X position. Uses the FloatingText entity for the
+  // motion + fade, but with custom font-size + decay so it reads as a
+  // 'warning' rather than a per-hit damage number.
+  if (typeof FloatingText !== 'undefined' && Array.isArray(floatingTexts)) {
+    const txt = new FloatingText(escapeX, CONFIG.height - 30, `-${amount} ⚠`, '#ff003c');
+    txt.fontSize = 16;
+    txt.vy = -1.6;
+    txt.decay = 0.018;
+    floatingTexts.push(txt);
+  }
+
+  // Brief red glow pulse along the bottom edge of the game container.
+  // Uses the existing CSS class pattern (hit-flash etc.) — see styles.css
+  // .base-hit-flash for the animation definition.
+  const container = document.getElementById('game-container');
+  if (container) {
+    container.classList.add('base-hit-flash');
+    setTimeout(() => container.classList.remove('base-hit-flash'), 380);
+  }
+}
+
 // First-ever-session reminder that P pauses the game. Shown once per
 // browser profile and silenced via localStorage flag; auto-hides after
 // 4 s OR on the first P press.
@@ -395,10 +427,15 @@ function updateGame(dt) {
   for (let i = asteroids.length - 1; i >= 0; i--) {
     const ast = asteroids[i];
     ast.update();
-    
+
     if (ast.y > CONFIG.height + 40) {
       asteroids.splice(i, 1);
-      // Damaging structural base
+      // Damaging structural base — was previously SILENT (no on-screen cue
+      // when an asteroid slipped past), which made Level 2's high-rate
+      // asteroid storm feel like random unprovoked HP loss. Now fires a
+      // visible warning + bottom-edge flash so the player understands the
+      // 'shoot or dodge everything' rule.
+      notifyBaseHit(ast.x, 10);
       damagePlayer(10);
     }
   }
@@ -574,6 +611,9 @@ function updateGame(dt) {
       // Route through damagePlayer so god mode / SHIELD pickup / invuln frames
       // all apply — previously this branch decremented health directly and
       // ignored every defensive system, which silently killed cheat 'god' runs.
+      // notifyBaseHit also fires a visible warning so the player understands
+      // why their shield dropped (escapes used to be a totally silent killer).
+      notifyBaseHit(enemy.x + enemy.width / 2, 15);
       damagePlayer(15);
     }
   }
