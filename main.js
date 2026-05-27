@@ -284,6 +284,16 @@ function updateGame(dt) {
     if (traumaLevel < 0) traumaLevel = 0;
   }
 
+  // Combo timer countdown — when the chain window expires without another
+  // kill, drop the multiplier back to ×1 silently.
+  if (comboTimer > 0) {
+    comboTimer -= dt;
+    if (comboTimer <= 0) {
+      comboKills = 0;
+      comboTimer = 0;
+    }
+  }
+
   // Critical-health heartbeat. The SHIELD HUD bar already flashes red below
   // 25% but combat is intense and players miss it visually — a periodic low
   // beep keeps them aware. Cadence is set in audio.js; we just drive it
@@ -616,6 +626,10 @@ function startGame() {
   // upgrade-types set and damage / scrap counters get cleared.
   if (window.Achievements) Achievements.startRun(selectedDifficulty);
 
+  // Wipe any lingering combo from a previous run so the new run starts at ×1.
+  comboKills = 0;
+  comboTimer = 0;
+
   player = new PlayerShip();
   
   const records = getLeaderboard();
@@ -723,7 +737,8 @@ const hudLast = {
   score: -1, level: -1, scrap: -1, high: -1,
   healthPct: -1, healthCls: '',
   empVisible: null, empFillPct: -1, empReady: null,
-  powerupsSig: ''
+  powerupsSig: '',
+  comboMult: 1
 };
 
 function getHudRefs() {
@@ -761,6 +776,27 @@ function updateHud(dt) {
   if (highRecord !== hudLast.high) {
     r.high.innerText = String(highRecord).padStart(6, '0');
     hudLast.high = highRecord;
+  }
+
+  // Combo multiplier chip — visible only when ×2 or higher. Lazily
+  // creates the DOM node on first use so it doesn't clutter the HUD
+  // for the long stretches where there's no chain going.
+  const comboMult = getComboMultiplier();
+  if (comboMult !== hudLast.comboMult) {
+    let chip = document.getElementById('hud-combo-chip');
+    if (comboMult >= 2) {
+      if (!chip) {
+        chip = document.createElement('div');
+        chip.id = 'hud-combo-chip';
+        chip.className = 'hud-combo-chip';
+        document.querySelector('.hud-top').appendChild(chip);
+      }
+      chip.textContent = `×${comboMult}`;
+      chip.classList.remove('hidden');
+    } else if (chip) {
+      chip.classList.add('hidden');
+    }
+    hudLast.comboMult = comboMult;
   }
 
   // Shield/health bar — only restyle when the band changes.

@@ -120,6 +120,23 @@ let traumaLevel = 0;
 // first re-entry into low-health territory beeps immediately.
 let criticalHeartbeatTimer = 0;
 
+// Score combo multiplier state. Each consecutive kill within COMBO_WINDOW_MS
+// of the previous bumps comboKills; the multiplier is derived from
+// comboKills (3 kills → ×2, 7 → ×3, 12 → ×4, 20 → ×5). Reset to 0 on any
+// damage taken or when comboTimer expires. Score added on destroyEnemy is
+// multiplied by getComboMultiplier() at award time.
+let comboKills = 0;
+let comboTimer = 0;
+const COMBO_WINDOW_MS = 2000;
+
+function getComboMultiplier() {
+  if (comboKills >= 20) return 5;
+  if (comboKills >= 12) return 4;
+  if (comboKills >= 7) return 3;
+  if (comboKills >= 3) return 2;
+  return 1;
+}
+
 // Game Entity Pools
 let player = null;
 let playerLasers = [];

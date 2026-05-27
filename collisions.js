@@ -46,8 +46,18 @@ function triggerPlayerEMP() {
 
 function destroyEnemy(enemy, eIndex) {
   enemies.splice(eIndex, 1);
-  score += enemy.scoreValue;
-  if (window.Achievements) Achievements.notify('enemy_destroyed', { type: enemy.type });
+  // Combo multiplier — chain kills within 2 s for ×2/×3/×4/×5 score.
+  // Bump first so the multiplier reflects this kill's chain position.
+  comboKills++;
+  comboTimer = COMBO_WINDOW_MS;
+  const mult = getComboMultiplier();
+  score += enemy.scoreValue * mult;
+  // Floating combo flair on milestone hits — at ×2, ×3, ×4, ×5 the player
+  // sees a bright tier label pop. Skip ×1 to avoid spam.
+  if (mult >= 2 && (comboKills === 3 || comboKills === 7 || comboKills === 12 || comboKills === 20)) {
+    floatingTexts.push(new FloatingText(enemy.x + enemy.width / 2, enemy.y - 12, `×${mult} COMBO!`, '#ffea00'));
+  }
+  if (window.Achievements) Achievements.notify('enemy_destroyed', { type: enemy.type, combo: comboKills });
   GameAudio.playExplosionSound(enemy.type.startsWith('boss') || enemy.type === 'unicron' ? 2.2 : 0.85);
   triggerScreenShake(enemy.type.startsWith('boss') || enemy.type === 'unicron' ? 0.9 : 0.25);
   
@@ -399,6 +409,11 @@ function damagePlayer(amount) {
 
   // Achievement tracker — flagging that this level is no longer 'untouchable'.
   if (window.Achievements) Achievements.notify('damage_taken', { amount });
+
+  // Reset the combo chain on any damage that actually lands. Players have
+  // to play perfectly to keep their multiplier — that's the skill expression.
+  comboKills = 0;
+  comboTimer = 0;
 
   health = Math.max(0, health - amount);
   triggerScreenShake(0.5);
