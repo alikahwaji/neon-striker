@@ -342,6 +342,7 @@ window.addEventListener('load', () => {
   });
 
   document.getElementById('btn-achievements').addEventListener('click', () => {
+    renderPilotProfile();
     renderAchievementsUI();
     document.getElementById('start-menu').classList.add('hidden');
     document.getElementById('achievements-menu').classList.remove('hidden');
@@ -721,6 +722,45 @@ window.addEventListener('load', () => {
 });
 
 /* ----------------------------------------------------
+   PILOT PROFILE — career stats + achievement grid
+   ---------------------------------------------------- */
+// Build the stat tiles at the top of the panel from the Stats module's
+// snapshot. Called from the same panel-open path as renderAchievementsUI
+// so both update together.
+function renderPilotProfile() {
+  if (!window.Stats) return;
+  const s = Stats.getSnapshot();
+  const host = document.getElementById('pilot-stats-grid');
+  if (!host) return;
+  while (host.firstChild) host.removeChild(host.firstChild);
+
+  const fav = Stats.getFavouriteSkin();
+  const tiles = [
+    { label: 'Total Kills', value: s.totalKills.toLocaleString() },
+    { label: 'Total Scrap', value: '⚙ ' + s.totalScrap.toLocaleString() },
+    { label: 'Runs Started', value: s.runsStarted.toString() },
+    { label: 'Campaigns Won', value: s.runsCompleted.toString() },
+    { label: 'Deepest Sector', value: s.longestRunLevel.toString() },
+    { label: 'Best Combo', value: `×${s.bestCombo}` },
+    { label: 'Playtime', value: Stats.formatPlaytime(s.totalPlaytime) },
+    { label: 'Favourite Skin', value: fav ? fav.toUpperCase() : '—' }
+  ];
+
+  tiles.forEach(t => {
+    const tile = document.createElement('div');
+    tile.className = 'stat-tile';
+    const lbl = document.createElement('span');
+    lbl.className = 'stat-label';
+    lbl.textContent = t.label;
+    const val = document.createElement('span');
+    val.className = 'stat-value';
+    val.textContent = t.value;
+    tile.append(lbl, val);
+    host.appendChild(tile);
+  });
+}
+
+/* ----------------------------------------------------
    ACHIEVEMENTS PANEL + TOAST
    ---------------------------------------------------- */
 // Build the achievements grid each time the panel opens so unlock state
@@ -759,7 +799,7 @@ function renderAchievementsUI() {
   });
 
   const progress = document.getElementById('achievements-progress');
-  if (progress) progress.textContent = `${unlocked.size} / ${defs.length} UNLOCKED`;
+  if (progress) progress.textContent = `🏅 ${unlocked.size} / ${defs.length} ACHIEVEMENTS UNLOCKED`;
 }
 
 // Per-toast hide timer so consecutive unlocks queue and replace cleanly

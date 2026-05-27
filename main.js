@@ -59,6 +59,8 @@ function triggerLevelClear() {
   // payload carries currentLevel, and Untouchable inspects perRun damage
   // counters which startLevel() reset at the start of this level.
   if (window.Achievements) Achievements.notify('level_cleared', { level: currentLevel });
+  // Stats: track the deepest level any run reaches + campaign-completion count.
+  if (window.Stats) Stats.notify('level_completed', { level: currentLevel });
 
   // Save current stats to upgrade hangar
   document.getElementById('shop-scrap').innerText = `⚙️ ${scrapCredits}`;
@@ -593,6 +595,9 @@ function gameTick(timestamp) {
 
   if (gameActive && !gamePaused) {
     updateGame(dt);
+    // Stats playtime ticks only during active gameplay, so menu / intro /
+    // pause time doesn't inflate the totalPlaytime counter.
+    if (window.Stats) Stats.tickPlaytime(dt);
   }
 
   drawGame();
@@ -625,6 +630,7 @@ function startGame() {
   // skinsTried, unlocked set) survive untouched — only the per-run
   // upgrade-types set and damage / scrap counters get cleared.
   if (window.Achievements) Achievements.startRun(selectedDifficulty);
+  if (window.Stats) Stats.notify('run_started', { skin: selectedSkin });
 
   // Wipe any lingering combo from a previous run so the new run starts at ×1.
   comboKills = 0;

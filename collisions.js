@@ -58,6 +58,7 @@ function destroyEnemy(enemy, eIndex) {
     floatingTexts.push(new FloatingText(enemy.x + enemy.width / 2, enemy.y - 12, `×${mult} COMBO!`, '#ffea00'));
   }
   if (window.Achievements) Achievements.notify('enemy_destroyed', { type: enemy.type, combo: comboKills });
+  if (window.Stats) Stats.notify('enemy_destroyed', { combo: comboKills });
   GameAudio.playExplosionSound(enemy.type.startsWith('boss') || enemy.type === 'unicron' ? 2.2 : 0.85);
   triggerScreenShake(enemy.type.startsWith('boss') || enemy.type === 'unicron' ? 0.9 : 0.25);
   
@@ -272,6 +273,7 @@ function handleCollisions() {
       scrapItems.splice(s, 1);
       scrapCredits += 10;
       if (window.Achievements) Achievements.notify('scrap_collected', { amount: 10 });
+      if (window.Stats) Stats.notify('scrap_collected', { amount: 10 });
       floatingTexts.push(new FloatingText(scrap.x, scrap.y - 10, "+10 ⚙️", '#39ff14'));
       GameAudio.playHitSound();
     }
