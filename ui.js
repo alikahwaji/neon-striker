@@ -211,6 +211,10 @@ window.addEventListener('load', () => {
     if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
       e.preventDefault();
     }
+    // Don't intercept M / P while the cheat-code input is focused — typing
+    // 'matrix' or any code containing those letters would otherwise mute or
+    // pause the game underneath the modal.
+    const typingInForm = e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA');
     // Record a one-shot edge only on the initial press, not on key-repeat,
     // so a held Shift on Matrix levels doesn't auto-trigger EMP every frame.
     if (!keys[e.code]) {
@@ -218,8 +222,12 @@ window.addEventListener('load', () => {
     }
     keys[e.code] = true;
 
-    if (e.code === 'KeyP') {
+    if (!typingInForm && e.code === 'KeyP') {
       togglePause();
+    }
+    if (!typingInForm && e.code === 'KeyM' && !e.repeat) {
+      const nowMuted = GameAudio.toggleMute();
+      document.getElementById('mute-indicator').classList.toggle('hidden', !nowMuted);
     }
   });
 

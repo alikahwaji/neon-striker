@@ -115,6 +115,29 @@ body {
   pointer-events: none;
 }
 
+/* Quick-mute indicator — floats top-right of the CRT screen while
+   GameAudio.muted is true. Hidden via the existing .hidden class
+   (opacity 0 + pointer-events none) so the show/hide is animated. */
+.mute-indicator {
+  position: absolute;
+  top: 16px;
+  right: 24px;
+  z-index: 50;
+  padding: 0.4rem 0.85rem;
+  border-radius: 4px;
+  background: rgba(8, 4, 18, 0.85);
+  border: 1.5px solid var(--neon-red);
+  color: var(--neon-red);
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 700;
+  font-size: 0.75rem;
+  letter-spacing: 0.15em;
+  text-shadow: 0 0 6px var(--neon-red);
+  box-shadow: 0 0 12px rgba(255, 0, 60, 0.35);
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+
 /* ----------------------------------------------------
    Game Container & Canvas Layout
    ---------------------------------------------------- */

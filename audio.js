@@ -17,7 +17,11 @@ class SynthAudioEngine {
     // Volumes from 0.0 to 1.0
     this.musicVolume = 0.5;
     this.sfxVolume = 0.7;
-    
+    // Quick-mute state — when true, master gains are forced to 0 regardless
+    // of musicVolume / sfxVolume so the player can silence the game with M
+    // without losing their slider positions.
+    this.muted = false;
+
     // BGM Sequencer state
     this.bgmInterval = null;
     this.bgmTempo = 110; // BPM
@@ -155,16 +159,36 @@ class SynthAudioEngine {
 
   setMusicVolume(volumePercentage) {
     this.musicVolume = volumePercentage / 100;
-    if (this.masterMusicGain && this.ctx) {
+    if (this.masterMusicGain && this.ctx && !this.muted) {
       this.masterMusicGain.gain.setTargetAtTime(this.musicVolume, this.ctx.currentTime, 0.05);
     }
   }
 
   setSfxVolume(volumePercentage) {
     this.sfxVolume = volumePercentage / 100;
-    if (this.masterSfxGain && this.ctx) {
+    if (this.masterSfxGain && this.ctx && !this.muted) {
       this.masterSfxGain.gain.setTargetAtTime(this.sfxVolume, this.ctx.currentTime, 0.05);
     }
+  }
+
+  /**
+   * Flip the global mute state. Slider positions are preserved so unmute
+   * restores the same volume the player picked. Returns the new muted
+   * state so the caller (ui.js) can update the visual indicator.
+   */
+  toggleMute() {
+    this.muted = !this.muted;
+    if (this.ctx) {
+      const target = this.muted ? 0 : this.musicVolume;
+      const sfxTarget = this.muted ? 0 : this.sfxVolume;
+      if (this.masterMusicGain) {
+        this.masterMusicGain.gain.setTargetAtTime(target, this.ctx.currentTime, 0.02);
+      }
+      if (this.masterSfxGain) {
+        this.masterSfxGain.gain.setTargetAtTime(sfxTarget, this.ctx.currentTime, 0.02);
+      }
+    }
+    return this.muted;
   }
 
   resume() {
