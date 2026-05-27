@@ -226,80 +226,10 @@ function updateGame(dt) {
   // before this line; anything new added later should follow the same pattern.
   keysPressed = {};
 
-  // Update HUD HUD values
-  document.getElementById('hud-score').innerText = String(score).padStart(6, '0');
-  document.getElementById('hud-wave').innerText = currentLevel;
-  document.getElementById('hud-scrap').innerText = `⚙️ ${String(scrapCredits).padStart(3, '0')}`;
-  const highRecord = Math.max(score, highScore);
-  document.getElementById('hud-high-score').innerText = String(highRecord).padStart(6, '0');
-
-  // Update Health Bar UI
-  const fill = document.getElementById('hud-health-fill');
-  const healthPercent = (health / maxHealth) * 100;
-  fill.style.width = `${healthPercent}%`;
-  
-  if (healthPercent > 50) {
-    fill.className = 'hud-health-fill shield-active';
-  } else if (healthPercent > 25) {
-    fill.className = 'hud-health-fill warning';
-  } else {
-    fill.className = 'hud-health-fill critical';
-  }
-
-  // Update EMP cooldown and HUD elements
-  if (playerUpgrades.emp > 0) {
-    const empContainer = document.getElementById('hud-emp-container');
-    if (empContainer) {
-      empContainer.classList.remove('hidden');
-    }
-    
-    if (empCooldownTimer > 0) {
-      let mult = bulletTimeActive ? 0.4 : 1.0;
-      empCooldownTimer -= dt * mult;
-      if (empCooldownTimer < 0) empCooldownTimer = 0;
-    }
-    
-    const empFill = document.getElementById('hud-emp-fill');
-    if (empFill) {
-      const fillPct = empCooldownTimer > 0 ? (1.0 - empCooldownTimer / 8000) * 100 : 100;
-      empFill.style.width = `${fillPct}%`;
-      if (empCooldownTimer <= 0) {
-        empFill.classList.add('emp-ready');
-      } else {
-        empFill.classList.remove('emp-ready');
-      }
-    }
-  } else {
-    const empContainer = document.getElementById('hud-emp-container');
-    if (empContainer) {
-      empContainer.classList.add('hidden');
-    }
-  }
-
-  // Update active powerups
-  const powerupsHUD = document.getElementById('hud-powerups');
-  powerupsHUD.innerHTML = '';
-  Object.keys(activePowerUps).forEach(key => {
-    if (activePowerUps[key] > 0) {
-      activePowerUps[key] -= dt;
-      
-      const secondsLeft = Math.ceil(activePowerUps[key] / 1000);
-      let name = 'SHIELD';
-      if (key === 'TRIPLE_SHOT') name = 'TRIPLE';
-      if (key === 'RAPID_FIRE') name = 'BOOST';
-      
-      powerupsHUD.innerHTML += `
-        <div class="powerup-badge">
-          <span>${name}</span>
-          <span class="badge-timer">${secondsLeft}s</span>
-        </div>
-      `;
-      
-      if (activePowerUps[key] <= 0) {
-        delete activePowerUps[key];
-      }
-    }
-  });
+  // Push HUD state to the DOM, skipping writes when nothing changed.
+  // Avoids a parse+reflow per element per frame for values that update
+  // only on score/level/health events.
+  updateHud(dt);
 
   // Update Projectiles
   for (let i = playerLasers.length - 1; i >= 0; i--) {
@@ -438,19 +368,25 @@ function updateGame(dt) {
         enemy.trail = enemy.trail.filter(pt => now - pt.birth < 4000);
       }
       
-      // Collide trail with player ship
+      // Collide trail with player ship — squared-distance test, and break on
+      // the first hit. Each trail can hold ~40 segments × N cycles, so the
+      // previous version called Math.sqrt for every segment and re-damaged
+      // (and re-shook the camera) on every overlapping segment in the same
+      // frame, which spikes both perf and felt-difficulty.
       if (player && enemy.trail) {
         const px = player.x + player.width / 2;
         const py = player.y + player.height / 2;
+        const TRAIL_HIT_RADIUS_SQ = 18 * 18;
         for (let t = 0; t < enemy.trail.length - 1; t++) {
           const p1 = enemy.trail[t];
           const p2 = enemy.trail[t + 1];
-          if (getDistanceToSegment(px, py, p1.x, p1.y, p2.x, p2.y) < 18) {
+          if (getSquaredDistanceToSegment(px, py, p1.x, p1.y, p2.x, p2.y) < TRAIL_HIT_RADIUS_SQ) {
             damagePlayer(0.35); // continuous trail damage
             triggerScreenShake(0.06);
             if (Math.random() < 0.1) {
               particles.push(new Particle(px, py, '#00ffff'));
             }
+            break; // one hit per cycle per frame is enough
           }
         }
       }
@@ -661,4 +597,134 @@ function showGameOverScreen() {
   }
 
   document.getElementById('game-over-screen').classList.remove('hidden');
+}
+
+/* ----------------------------------------------------
+   HUD UPDATE (cached refs + dirty-write batching)
+   ---------------------------------------------------- */
+// Lazily-initialised DOM lookups so getElementById runs once, not 60×/sec.
+let hudRefs = null;
+// Last values pushed to the DOM, so we only write when something changed.
+const hudLast = {
+  score: -1, level: -1, scrap: -1, high: -1,
+  healthPct: -1, healthCls: '',
+  empVisible: null, empFillPct: -1, empReady: null,
+  powerupsSig: ''
+};
+
+function getHudRefs() {
+  if (hudRefs) return hudRefs;
+  hudRefs = {
+    score: document.getElementById('hud-score'),
+    wave: document.getElementById('hud-wave'),
+    scrap: document.getElementById('hud-scrap'),
+    high: document.getElementById('hud-high-score'),
+    healthFill: document.getElementById('hud-health-fill'),
+    empContainer: document.getElementById('hud-emp-container'),
+    empFill: document.getElementById('hud-emp-fill'),
+    powerups: document.getElementById('hud-powerups')
+  };
+  return hudRefs;
+}
+
+function updateHud(dt) {
+  const r = getHudRefs();
+
+  // Counter values — write only when changed.
+  if (score !== hudLast.score) {
+    r.score.innerText = String(score).padStart(6, '0');
+    hudLast.score = score;
+  }
+  if (currentLevel !== hudLast.level) {
+    r.wave.innerText = currentLevel;
+    hudLast.level = currentLevel;
+  }
+  if (scrapCredits !== hudLast.scrap) {
+    r.scrap.innerText = `⚙️ ${String(scrapCredits).padStart(3, '0')}`;
+    hudLast.scrap = scrapCredits;
+  }
+  const highRecord = Math.max(score, highScore);
+  if (highRecord !== hudLast.high) {
+    r.high.innerText = String(highRecord).padStart(6, '0');
+    hudLast.high = highRecord;
+  }
+
+  // Shield/health bar — only restyle when the band changes.
+  const healthPercent = (health / maxHealth) * 100;
+  if (healthPercent !== hudLast.healthPct) {
+    r.healthFill.style.width = `${healthPercent}%`;
+    hudLast.healthPct = healthPercent;
+  }
+  const healthCls = healthPercent > 50
+    ? 'hud-health-fill shield-active'
+    : healthPercent > 25
+      ? 'hud-health-fill warning'
+      : 'hud-health-fill critical';
+  if (healthCls !== hudLast.healthCls) {
+    r.healthFill.className = healthCls;
+    hudLast.healthCls = healthCls;
+  }
+
+  // EMP cooldown bar — visibility, tick-down, and fill class.
+  const empWanted = playerUpgrades.emp > 0;
+  if (empWanted !== hudLast.empVisible) {
+    if (r.empContainer) r.empContainer.classList.toggle('hidden', !empWanted);
+    hudLast.empVisible = empWanted;
+  }
+  if (empWanted) {
+    if (empCooldownTimer > 0) {
+      const mult = bulletTimeActive ? 0.4 : 1.0;
+      empCooldownTimer -= dt * mult;
+      if (empCooldownTimer < 0) empCooldownTimer = 0;
+    }
+    if (r.empFill) {
+      const fillPct = empCooldownTimer > 0 ? (1.0 - empCooldownTimer / 8000) * 100 : 100;
+      if (fillPct !== hudLast.empFillPct) {
+        r.empFill.style.width = `${fillPct}%`;
+        hudLast.empFillPct = fillPct;
+      }
+      const empReady = empCooldownTimer <= 0;
+      if (empReady !== hudLast.empReady) {
+        r.empFill.classList.toggle('emp-ready', empReady);
+        hudLast.empReady = empReady;
+      }
+    }
+  }
+
+  // Active power-up badges — tick down first, then rebuild only when the
+  // set of (type, seconds-remaining) tuples has actually changed. A frame
+  // where every badge's displayed second-bucket is the same does zero DOM
+  // work instead of clearing + re-parsing the subtree.
+  Object.keys(activePowerUps).forEach(key => {
+    if (activePowerUps[key] > 0) {
+      activePowerUps[key] -= dt;
+      if (activePowerUps[key] <= 0) delete activePowerUps[key];
+    }
+  });
+
+  let sig = '';
+  Object.keys(activePowerUps).forEach(key => {
+    sig += `${key}:${Math.ceil(activePowerUps[key] / 1000)};`;
+  });
+
+  if (sig !== hudLast.powerupsSig) {
+    hudLast.powerupsSig = sig;
+    const host = r.powerups;
+    while (host.firstChild) host.removeChild(host.firstChild);
+    Object.keys(activePowerUps).forEach(key => {
+      const secondsLeft = Math.ceil(activePowerUps[key] / 1000);
+      const label = key === 'TRIPLE_SHOT' ? 'TRIPLE'
+                  : key === 'RAPID_FIRE' ? 'BOOST'
+                  : 'SHIELD';
+      const badge = document.createElement('div');
+      badge.className = 'powerup-badge';
+      const nameSpan = document.createElement('span');
+      nameSpan.textContent = label;
+      const timerSpan = document.createElement('span');
+      timerSpan.className = 'badge-timer';
+      timerSpan.textContent = `${secondsLeft}s`;
+      badge.append(nameSpan, timerSpan);
+      host.appendChild(badge);
+    });
+  }
 }

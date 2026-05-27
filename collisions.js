@@ -9,16 +9,26 @@
    COLLISIONS HANDLING ALGORITHMS
    ---------------------------------------------------- */
 function getDistanceToSegment(px, py, x1, y1, x2, y2) {
+  return Math.sqrt(getSquaredDistanceToSegment(px, py, x1, y1, x2, y2));
+}
+
+// Squared distance from point to segment. Use for collision *tests* where
+// you compare against a radius² constant; avoids the sqrt and ~doubles
+// throughput in hot loops like light-cycle trail vs player. Direction
+// vectors that need a unit length should still go through getDistance*().
+function getSquaredDistanceToSegment(px, py, x1, y1, x2, y2) {
   const dx = x2 - x1;
   const dy = y2 - y1;
   if (dx === 0 && dy === 0) {
-    return Math.sqrt((px - x1) ** 2 + (py - y1) ** 2);
+    const ex = px - x1;
+    const ey = py - y1;
+    return ex * ex + ey * ey;
   }
   const t = ((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy);
-  const clampedT = Math.max(0, Math.min(1, t));
-  const closestX = x1 + clampedT * dx;
-  const closestY = y1 + clampedT * dy;
-  return Math.sqrt((px - closestX) ** 2 + (py - closestY) ** 2);
+  const clampedT = t < 0 ? 0 : t > 1 ? 1 : t;
+  const ex = px - (x1 + clampedT * dx);
+  const ey = py - (y1 + clampedT * dy);
+  return ex * ex + ey * ey;
 }
 
 function spawnDebris(x, y, color) {
@@ -119,12 +129,15 @@ function handleCollisions() {
 
     if (hitSomething) continue;
 
-    // Player lasers vs Asteroids
+    // Player lasers vs Asteroids — compare squared distances so we avoid
+    // sqrt per (laser × asteroid) per frame.
     for (let a = asteroids.length - 1; a >= 0; a--) {
       const ast = asteroids[a];
-      const dist = Math.sqrt(Math.pow(laser.x - ast.x, 2) + Math.pow(laser.y - ast.y, 2));
-      
-      if (dist < ast.radius + laser.width) {
+      const ldx = laser.x - ast.x;
+      const ldy = laser.y - ast.y;
+      const reach = ast.radius + laser.width;
+
+      if (ldx * ldx + ldy * ldy < reach * reach) {
         if (laser.piercing) {
           if (!laser.hitAsteroids) laser.hitAsteroids = new Set();
           if (laser.hitAsteroids.has(ast)) continue;
@@ -188,12 +201,14 @@ function handleCollisions() {
 
     if (exploded) continue;
 
-    // Homing Missile vs Asteroids
+    // Homing Missile vs Asteroids — squared-distance test.
     for (let a = asteroids.length - 1; a >= 0; a--) {
       const ast = asteroids[a];
-      const dist = Math.sqrt(Math.pow(missile.x - ast.x, 2) + Math.pow(missile.y - ast.y, 2));
-      
-      if (dist < ast.radius + 3) {
+      const mdx = missile.x - ast.x;
+      const mdy = missile.y - ast.y;
+      const reach = ast.radius + 3;
+
+      if (mdx * mdx + mdy * mdy < reach * reach) {
         homingMissiles.splice(m, 1);
         
         const destroyed = ast.takeDamage(3);
@@ -254,8 +269,10 @@ function handleCollisions() {
   for (let p = powerUps.length - 1; p >= 0; p--) {
     const pup = powerUps[p];
     if (pup instanceof SpiceCloud) {
-      const dist = Math.sqrt(Math.pow(player.x + player.width/2 - pup.x, 2) + Math.pow(player.y + player.height/2 - pup.y, 2));
-      if (dist < pup.radius + 18) {
+      const sdx = player.x + player.width / 2 - pup.x;
+      const sdy = player.y + player.height / 2 - pup.y;
+      const reach = pup.radius + 18;
+      if (sdx * sdx + sdy * sdy < reach * reach) {
         powerUps.splice(p, 1);
         GameAudio.playPowerUpSound();
         floatingTexts.push(new FloatingText(player.x + player.width/2, player.y - 15, "SPICE WEAPON OVERCHARGE!", '#ffea00'));
@@ -303,13 +320,17 @@ function handleCollisions() {
     const ast = asteroids[a];
     if (ast instanceof Monolith) continue;
     
-    // Asteroid vs Player
-    const distPlayer = Math.sqrt(Math.pow(player.x + player.width/2 - ast.x, 2) + Math.pow(player.y + player.height/2 - ast.y, 2));
-    if (distPlayer < ast.radius + 18) {
-      asteroids.splice(a, 1);
-      spawnExplosionParticles(ast.x, ast.y, ast.color, 12);
-      damagePlayer(ast.size === 'large' ? 35 : ast.size === 'medium' ? 22 : 12);
-      continue;
+    // Asteroid vs Player — squared-distance test.
+    {
+      const pdx = player.x + player.width / 2 - ast.x;
+      const pdy = player.y + player.height / 2 - ast.y;
+      const pReach = ast.radius + 18;
+      if (pdx * pdx + pdy * pdy < pReach * pReach) {
+        asteroids.splice(a, 1);
+        spawnExplosionParticles(ast.x, ast.y, ast.color, 12);
+        damagePlayer(ast.size === 'large' ? 35 : ast.size === 'medium' ? 22 : 12);
+        continue;
+      }
     }
 
     // Asteroid vs Enemies physical crash (highly tactical and exciting!)
@@ -317,8 +338,10 @@ function handleCollisions() {
       const enemy = enemies[e];
       if (enemy.type.startsWith('boss') || enemy.type === 'sandworm' || enemy.type === 'unicron') continue;
 
-      const distEnemy = Math.sqrt(Math.pow(enemy.x + enemy.width/2 - ast.x, 2) + Math.pow(enemy.y + enemy.height/2 - ast.y, 2));
-      if (distEnemy < ast.radius + enemy.width/2) {
+      const edx = enemy.x + enemy.width / 2 - ast.x;
+      const edy = enemy.y + enemy.height / 2 - ast.y;
+      const eReach = ast.radius + enemy.width / 2;
+      if (edx * edx + edy * edy < eReach * eReach) {
         asteroids.splice(a, 1);
         enemies.splice(e, 1);
         
