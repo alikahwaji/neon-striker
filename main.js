@@ -120,9 +120,34 @@ function loadAndStartLevel() {
     document.getElementById('hud').classList.remove('hidden');
     gameActive = true;
     gamePaused = false;
-    
+
     spawnCampaignForces(lvlData);
+    maybeShowPauseHint();
   }, 3200);
+}
+
+// First-ever-session reminder that P pauses the game. Shown once per
+// browser profile and silenced via localStorage flag; auto-hides after
+// 4 s OR on the first P press.
+function maybeShowPauseHint() {
+  let alreadySeen = false;
+  try {
+    alreadySeen = !!localStorage.getItem('neon_striker_pause_hint_seen_v1');
+  } catch (e) { /* localStorage may throw in private mode — fail open */ }
+  if (alreadySeen) return;
+
+  const toast = document.getElementById('pause-hint-toast');
+  if (!toast) return;
+  toast.classList.remove('hidden');
+
+  const markSeen = () => {
+    toast.classList.add('hidden');
+    try { localStorage.setItem('neon_striker_pause_hint_seen_v1', '1'); } catch (e) {}
+    window.removeEventListener('keydown', dismissOnPause);
+  };
+  const dismissOnPause = (e) => { if (e.code === 'KeyP') markSeen(); };
+  window.addEventListener('keydown', dismissOnPause);
+  setTimeout(markSeen, 4000);
 }
 
 function spawnCampaignForces(lvlData) {

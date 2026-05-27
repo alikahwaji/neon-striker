@@ -138,6 +138,46 @@ body {
   transition: opacity 0.25s ease;
 }
 
+/* First-session pause hint — bottom-centred toast that fades in on the
+   first ever gameplay frame and auto-fades after 4s (or on first P press).
+   The localStorage flag neon_striker_pause_hint_seen_v1 prevents it from
+   showing again on subsequent sessions. */
+.pause-hint-toast {
+  position: absolute;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  padding: 0.55rem 1.1rem;
+  border-radius: 4px;
+  background: rgba(8, 4, 18, 0.85);
+  border: 1.5px solid var(--neon-cyan);
+  color: #b0aebf;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.85rem;
+  letter-spacing: 0.1em;
+  box-shadow: 0 0 14px rgba(0, 240, 255, 0.3);
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  animation: pause-hint-pulse 1.5s ease-in-out infinite alternate;
+}
+
+.pause-hint-toast.hidden {
+  opacity: 0;
+  pointer-events: none;
+  /* Override the global .hidden's transform: scale(0.95) — the toast is
+     centred via translateX(-50%) so a scale wipes that out and the toast
+     would jump to the left edge during the fade. */
+  transform: translateX(-50%);
+}
+
+@keyframes pause-hint-pulse {
+  from { box-shadow: 0 0 10px rgba(0, 240, 255, 0.25); }
+  to   { box-shadow: 0 0 18px rgba(0, 240, 255, 0.55); }
+}
+
 /* ----------------------------------------------------
    Game Container & Canvas Layout
    ---------------------------------------------------- */
