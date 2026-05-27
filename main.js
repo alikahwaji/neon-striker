@@ -218,6 +218,28 @@ function generateEndlessLevel(n) {
 }
 
 /* ----------------------------------------------------
+   SCORE FORMATTING — hybrid arcade + modern
+   ----------------------------------------------------
+   Below 1000 the score reads as a 3-digit zero-padded number (preserves
+   the classic Galaga/Pac-Man cabinet vibe early-game where the leading
+   zeros visually 'park' the digits). At 1000+, switches to a locale
+   comma-grouped number ('1,250' / '47,800' / '1,500,000') so the
+   late-game score stays legible without exploding past 6 digits.
+   Used for SCORE + HI-SCORE on the HUD and the final-score line on
+   the Game Over panel. */
+function formatScore(n) {
+  const v = Math.max(0, Math.floor(n || 0));
+  if (v < 1000) return String(v).padStart(3, '0');
+  return v.toLocaleString();
+}
+
+// Scrap counter shares the same hybrid format so the HUD reads
+// consistently across all three top-bar values.
+function formatScrap(n) {
+  return formatScore(n);
+}
+
+/* ----------------------------------------------------
    ESCAPE-DAMAGE FEEDBACK
    ----------------------------------------------------
    Asteroids and enemies that slip past the bottom of the screen used
@@ -768,7 +790,7 @@ function showGameOverScreen() {
   const finalScoreEl = document.getElementById('final-score');
   const finalWaveEl = document.getElementById('final-wave');
   
-  finalScoreEl.innerText = String(score).padStart(6, '0');
+  finalScoreEl.innerText = formatScore(score);
   finalWaveEl.innerText = currentLevel;
 
   const inputContainer = document.getElementById('high-score-input-container');
@@ -836,7 +858,7 @@ function updateHud(dt) {
 
   // Counter values — write only when changed.
   if (score !== hudLast.score) {
-    r.score.innerText = String(score).padStart(6, '0');
+    r.score.innerText = formatScore(score);
     hudLast.score = score;
   }
   if (currentLevel !== hudLast.level) {
@@ -844,12 +866,12 @@ function updateHud(dt) {
     hudLast.level = currentLevel;
   }
   if (scrapCredits !== hudLast.scrap) {
-    r.scrap.innerText = `⚙️ ${String(scrapCredits).padStart(3, '0')}`;
+    r.scrap.innerText = `⚙️ ${formatScrap(scrapCredits)}`;
     hudLast.scrap = scrapCredits;
   }
   const highRecord = Math.max(score, highScore);
   if (highRecord !== hudLast.high) {
-    r.high.innerText = String(highRecord).padStart(6, '0');
+    r.high.innerText = formatScore(highRecord);
     hudLast.high = highRecord;
   }
 
