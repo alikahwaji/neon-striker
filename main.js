@@ -744,7 +744,10 @@ function showGameOverScreen() {
   // every pilot's score reflects a single uninterrupted attempt.
   const btnContinue = document.getElementById('btn-continue');
   if (currentLevel > 1 && selectedDifficulty !== 'elite' && !dailyMode && !bossRushMode) {
-    btnContinue.innerText = `CONTINUE SECTOR ${currentLevel}`;
+    // Short label so the horizontal action row fits 4 buttons cleanly at
+    // the panel's max-width. The 'SECTOR n' context is already visible in
+    // the score block right above this row.
+    btnContinue.innerText = `▶ CONTINUE L${currentLevel}`;
     btnContinue.classList.remove('hidden');
   } else {
     btnContinue.classList.add('hidden');

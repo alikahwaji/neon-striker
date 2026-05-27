@@ -1255,67 +1255,108 @@ input[type=range]::-webkit-slider-thumb:hover {
 }
 
 .score-lbl {
-  font-size: 1rem;
+  font-size: 0.9rem;
   color: #9d98b0;
+  letter-spacing: 0.1em;
 }
 
 .score-val {
   font-family: 'Orbitron', sans-serif;
   font-weight: 900;
-  font-size: 1.5rem;
+  font-size: 1.3rem;
 }
 
+/* High-score entry block — tightened so the Game Over panel fits all
+   content (title + score + name entry + 4 actions) in the canvas at
+   typical desktop viewports without scrolling. */
 .high-score-input-container {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 2rem;
+  gap: 0.4rem;
+  margin-bottom: 0.85rem;
   background: rgba(0, 240, 255, 0.05);
   border: 1px dashed var(--neon-blue);
   border-radius: 4px;
-  padding: 1.25rem;
+  padding: 0.7rem 1rem;
+}
+
+.high-score-input-container p {
+  margin: 0;
+  font-size: 0.85rem;
 }
 
 .name-entry-wrapper {
   display: flex;
-  gap: 0.75rem;
-  margin-top: 0.5rem;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+  align-items: stretch;
 }
 
+/* Pilot codename input — slimmed from a button-sized box (2 px border,
+   1.3 rem font, 220 px wide) to a proper text-field appearance. The
+   previous styling made it look like a clickable button next to the
+   real SAVE RECORD button, which was confusing. */
 .pilot-input {
-  background: #000;
-  border: 2px solid var(--neon-magenta);
+  background: rgba(0, 0, 0, 0.7);
+  border: 1.5px solid var(--neon-magenta);
   color: var(--neon-yellow);
   font-family: 'Orbitron', sans-serif;
-  font-weight: 900;
-  font-size: 1.3rem;
+  font-weight: 700;
+  font-size: 0.95rem;
   text-align: center;
-  width: 220px;
-  letter-spacing: 0.1em;
+  width: 140px;
+  padding: 0.45rem 0.6rem;
+  letter-spacing: 0.08em;
   outline: none;
   text-transform: uppercase;
-  border-radius: 4px;
-  box-shadow: 0 0 10px rgba(255, 0, 170, 0.2);
+  border-radius: 3px;
+  box-shadow: 0 0 6px rgba(255, 0, 170, 0.15);
 }
 
 .pilot-input:focus {
   border-color: var(--neon-blue);
-  box-shadow: 0 0 15px rgba(0, 240, 255, 0.4);
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.4);
 }
 
 .pilot-input::placeholder {
   color: rgba(255, 234, 0, 0.35);
 }
 
+/* The SAVE RECORD button next to the pilot input — overrides the
+   global .btn min-width/padding so it sits at the same height as the
+   slim text input instead of dwarfing it. */
+.name-entry-wrapper .btn {
+  min-width: 0;
+  margin: 0;
+  padding: 0.45rem 1rem;
+  font-size: 0.85rem;
+}
+
+/* Action buttons row — horizontal flex-wrap so up to 4 buttons fit
+   in a single row at desktop widths, wrapping gracefully when narrow.
+   Previously column-stack put the whole panel into vertical overflow
+   the moment SHARE SCORE was added. */
 .game-over-actions {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
   align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  max-width: 760px;
+  margin: 0 auto;
 }
 
 #game-over-screen .btn {
-  margin: 0.5rem;
+  margin: 0;
+  min-width: 0;
+  flex: 1 1 170px;
+  padding: 0.7rem 1rem;
+  font-size: 0.85rem;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
 }
 
 /* Pause Button HUD panel and interactive elements */
