@@ -851,7 +851,10 @@ function generateShareImage({ name, score, level, mode, difficulty }) {
   c.fillStyle = '#00f0ff';
   c.shadowColor = '#00f0ff';
   c.shadowBlur = 30;
-  c.fillText(String(score).padStart(6, '0'), W / 2, 440);
+  // Share image uses comma-grouped number for late-game scores; falls
+  // back to 3-digit padding for early-game runs (mirrors formatScore()
+  // in main.js so the share card matches the in-game HUD).
+  c.fillText(score < 1000 ? String(score).padStart(3, '0') : score.toLocaleString(), W / 2, 440);
 
   // Sector reached — secondary stat.
   c.shadowBlur = 0;
