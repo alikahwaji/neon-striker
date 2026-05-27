@@ -115,6 +115,91 @@ body {
   pointer-events: none;
 }
 
+/* ----------------------------------------------------
+   NEON RAIN — pillarbox margin decoration
+   ----------------------------------------------------
+   The 4:3 game container leaves vertical black pillarbox bars on
+   widescreen viewports. Each bar hosts a column of multi-coloured
+   neon 'rain drops' continuously cascading from top to bottom.
+   Pure CSS, no image assets, GPU-animated (transform + opacity
+   only, no layout thrash). Hidden via media query on viewports
+   too narrow for pillarbox bars. */
+.neon-side-decor {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  width: 170px;
+  z-index: 2;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.side-left { left: 0; }
+.side-right { right: 0; }
+
+/* A single rain drop — a tall thin gradient streak with a bright head.
+   Uses currentColor so the colour variant classes only need to set
+   `color` once and the background gradient + drop-shadow inherit it. */
+.neon-drop {
+  position: absolute;
+  top: -15%;
+  width: 3px;
+  height: 70px;
+  border-radius: 3px;
+  /* Bright white head fading into the neon trail, then to transparent.
+     Drop-shadow gives the soft halo without needing a separate element. */
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    currentColor 35%,
+    rgba(255, 255, 255, 0.95) 92%,
+    rgba(255, 255, 255, 0.6) 100%
+  );
+  filter: drop-shadow(0 0 6px currentColor) drop-shadow(0 0 12px currentColor);
+  /* CSS custom props with defaults — overridden by the .n1..n8
+     positioning classes for staggered fall behaviour. */
+  animation: neon-drop-fall var(--fall, 3.5s) linear var(--delay, 0s) infinite;
+}
+
+/* Colour variants — currentColor drives both the gradient and the glow. */
+.d-magenta { color: var(--neon-magenta); }
+.d-cyan    { color: var(--neon-blue); /* alias — --neon-blue == --neon-cyan */ }
+.d-yellow  { color: var(--neon-yellow); }
+.d-green   { color: var(--neon-green); }
+.d-purple  { color: var(--neon-purple); }
+
+/* Per-drop X position + fall duration + start delay. 8 drops per side
+   spread across the 170 px column, with varied durations (2.4–5.4 s)
+   and offset start times so the cascade feels organic rather than
+   marching in lockstep. */
+.neon-drop.n1 { left: 14%; --fall: 3.2s; --delay: 0s; }
+.neon-drop.n2 { left: 28%; --fall: 4.6s; --delay: 0.7s; }
+.neon-drop.n3 { left: 44%; --fall: 2.8s; --delay: 1.4s; }
+.neon-drop.n4 { left: 58%; --fall: 3.9s; --delay: 0.2s; }
+.neon-drop.n5 { left: 74%; --fall: 5.1s; --delay: 2.1s; }
+.neon-drop.n6 { left: 22%; --fall: 4.2s; --delay: 1.8s; }
+.neon-drop.n7 { left: 52%; --fall: 2.4s; --delay: 2.9s; }
+.neon-drop.n8 { left: 68%; --fall: 4.8s; --delay: 0.4s; }
+
+/* The fall animation — pure transform so it stays on the compositor.
+   Fade-in at the top + fade-out near the bottom so drops don't pop in/out. */
+@keyframes neon-drop-fall {
+  0%   { transform: translateY(0);     opacity: 0; }
+  8%   {                                opacity: 1; }
+  92%  {                                opacity: 1; }
+  100% { transform: translateY(115vh); opacity: 0; }
+}
+
+/* Hide the decorations when the viewport isn't wide enough to host a
+   pillarbox — at 4:3 the game container fills width × 3/4. If the
+   viewport width is less than roughly 1.45× the height, there isn't
+   meaningful side-bar real estate, and the decorations would overlap
+   the playfield. Threshold picked so common laptop widths (1366+)
+   trigger the decor, narrower windows hide it. */
+@media (max-aspect-ratio: 1.45/1) {
+  .neon-side-decor { display: none; }
+}
+
 /* Combo multiplier chip — appears in the top HUD bar only when the
    player is in a chain (×2 or higher). Pulses to draw the eye and
    uses the daily-yellow accent so it reads as a special-mode boost. */
@@ -731,9 +816,10 @@ body {
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   padding-top: 0.75rem;
   width: 100%;
-  /* Widened from 500px so the horizontal .controls-grid can fit all four
-     control items on one or two rows without wrapping into more. */
-  max-width: 680px;
+  /* Widened 680 -> 900 so all FOUR control items (THRUSTERS, FIRE LASER,
+     EMP, PAUSE) lay out in a single horizontal row at desktop widths
+     instead of wrapping the lone P/PAUSE onto a second row. */
+  max-width: 900px;
   text-align: center;
 }
 
