@@ -97,11 +97,33 @@
 
         <div class="how-to-play">
           <h3>PILOT COMMANDS</h3>
+          <!--
+            Each control is a self-contained .control-item flex block so the
+            outer .controls-grid can lay them out horizontally with flex-wrap,
+            instead of one row per key (the previous mixed text-node + span
+            markup forced each .key into its own grid row).
+          -->
           <div class="controls-grid">
-            <span class="key">W</span>/<span class="key">A</span>/<span class="key">S</span>/<span class="key">D</span> or <span class="key">↑</span>/<span class="key">←</span>/<span class="key">↓</span>/<span class="key">→</span> <span class="action">THRUSTERS (2D FLIGHT)</span>
-            <span class="key">SPACEBAR</span> <span class="action">LASER CANNON (SHOOT)</span>
-            <span class="key">E</span> / <span class="key">SHIFT</span> <span class="action">EMP SHOCKWAVE (ACTIVE)</span>
-            <span class="key">P</span> <span class="action">PAUSE SIMULATION</span>
+            <div class="control-item">
+              <span class="keys">
+                <span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span>
+                <span class="key-sep">or</span>
+                <span class="key">↑</span><span class="key">←</span><span class="key">↓</span><span class="key">→</span>
+              </span>
+              <span class="action">THRUSTERS</span>
+            </div>
+            <div class="control-item">
+              <span class="keys"><span class="key">SPACE</span></span>
+              <span class="action">FIRE LASER</span>
+            </div>
+            <div class="control-item">
+              <span class="keys"><span class="key">E</span><span class="key-sep">/</span><span class="key">SHIFT</span></span>
+              <span class="action">EMP SHOCKWAVE</span>
+            </div>
+            <div class="control-item">
+              <span class="keys"><span class="key">P</span></span>
+              <span class="action">PAUSE</span>
+            </div>
           </div>
         </div>
       </div>
