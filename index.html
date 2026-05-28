@@ -453,16 +453,14 @@
   </div>
 
   <!-- Game Scripts -->
-  <!-- Load order matters: config + entities define the bindings every other file consumes -->
+  <!-- database.js stays a separate ES module so its Firebase config + window.*
+       leaderboard/analytics bridge load independently. -->
   <script type="module" src="database.js"></script>
-  <script src="audio.js"></script>
-  <script src="config.js"></script>
-  <script src="entities.js"></script>
-  <script src="render.js"></script>
-  <script src="collisions.js"></script>
-  <script src="achievements.js"></script>
-  <script src="stats.js"></script>
-  <script src="main.js"></script>
-  <script src="ui.js"></script>
+  <!-- All gameplay scripts are concatenated into a single IIFE bundle so that
+       game state (scrapCredits, score, etc.) is NOT reachable from the DevTools
+       console — an anti-cheat deterrent. Edit the source files (audio.js,
+       config.js, entities.js, render.js, collisions.js, achievements.js,
+       stats.js, main.js, ui.js) then run `node build.js` to regenerate. -->
+  <script src="game.bundle.js"></script>
 </body>
 </html>
