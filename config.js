@@ -42,6 +42,15 @@ let cheatRainbow = false;
 let cheatGod = false;
 let cheatMatrix = false;
 
+// True when a SCORING-advantage cheat was active during the current run:
+//   * god mode (invincibility) — set at run start if cheatGod is on
+//   * DEATH BLOSSOM (Konami 8-way burst) — set when triggered mid-run
+// Purely cosmetic cheats (rainbow lasers, matrix backdrop, saucer skin)
+// do NOT taint a run. Tainted runs still save a LOCAL high score but are
+// withheld from the global + daily Firestore leaderboards so cheats can't
+// pad the shared boards. Reset at the top of each fresh run (startGame).
+let runTainted = false;
+
 // Boss Rush mode — fight the four campaign bosses back-to-back with no
 // shop interludes, no continues, single score. bossRushIndex advances
 // through BOSS_RUSH_SEQUENCE; when it exceeds the array, the run ends.

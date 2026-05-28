@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <!-- Load retro modern and high-tech typography -->
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Press+Start+2P&family=Share+Tech+Mono&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=10">
+  <link rel="stylesheet" href="styles.css?v=11">
 </head>
 <body>
 
@@ -444,6 +444,12 @@
             <button id="btn-submit-score" class="btn btn-primary select-none">SAVE RECORD</button>
           </div>
         </div>
+
+        <!-- Shown when a scoring cheat (god mode / DEATH BLOSSOM) was active:
+             the run is saved locally but withheld from the global boards. -->
+        <p id="cheat-disqualified-note" class="cheat-disqualified-note hidden">
+          ⚠ CHEAT-ACTIVE RUN — LOCAL SAVE ONLY, NOT ON GLOBAL BOARD
+        </p>
 
         <div class="game-over-actions">
           <button id="btn-continue" class="btn btn-primary select-none hidden">CONTINUE MISSION</button>

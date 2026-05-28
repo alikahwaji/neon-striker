@@ -754,6 +754,15 @@ let cheatRainbow = false;
 let cheatGod = false;
 let cheatMatrix = false;
 
+// True when a SCORING-advantage cheat was active during the current run:
+//   * god mode (invincibility) — set at run start if cheatGod is on
+//   * DEATH BLOSSOM (Konami 8-way burst) — set when triggered mid-run
+// Purely cosmetic cheats (rainbow lasers, matrix backdrop, saucer skin)
+// do NOT taint a run. Tainted runs still save a LOCAL high score but are
+// withheld from the global + daily Firestore leaderboards so cheats can't
+// pad the shared boards. Reset at the top of each fresh run (startGame).
+let runTainted = false;
+
 // Boss Rush mode — fight the four campaign bosses back-to-back with no
 // shop interludes, no continues, single score. bossRushIndex advances
 // through BOSS_RUSH_SEQUENCE; when it exceeds the array, the run ends.
@@ -5173,6 +5182,14 @@ function startGame() {
   scrapCredits = 0;
   maxHealth = 100;
   health = 100;
+
+  // Fresh run: clear the cheat-taint flag, then taint immediately if god
+  // mode (invincibility) is enabled — that's an unfair scoring advantage,
+  // so this run won't post to the global/daily leaderboards. DEATH BLOSSOM
+  // taints separately when triggered mid-run. (continueGame deliberately
+  // does NOT reset this, so a tainted run stays tainted across a continue.)
+  runTainted = false;
+  if (cheatGod) runTainted = true;
   
   playerUpgrades.speed = 1;
   playerUpgrades.shield = 1;
@@ -5271,6 +5288,12 @@ function showGameOverScreen() {
   } else {
     inputContainer.classList.add('hidden');
   }
+
+  // Tainted (cheat-active) runs: tell the pilot their score is local-only
+  // and won't appear on the global/daily boards. Shown regardless of the
+  // new-high-score check so the explanation is never hidden.
+  const taintNote = document.getElementById('cheat-disqualified-note');
+  if (taintNote) taintNote.classList.toggle('hidden', !runTainted);
 
   // Handle Continue button visibility — disabled in daily / boss-rush so
   // every pilot's score reflects a single uninterrupted attempt.
@@ -5503,8 +5526,10 @@ function saveHighScore(name, scoreVal) {
   const sorted = board.sort((a, b) => b.score - a.score).slice(0, 8);
   localStorage.setItem('neon_striker_high_scores', JSON.stringify(sorted));
 
-  // If Firebase database is active, push the score to Firestore globally!
-  if (window.firebaseEnabled) {
+  // If Firebase database is active, push the score to Firestore globally —
+  // BUT withhold cheat-active runs (god mode / DEATH BLOSSOM). The local
+  // board above still records them; only the shared global board is gated.
+  if (window.firebaseEnabled && !runTainted) {
     window.saveGlobalHighScore(taggedName, scoreVal);
   }
 }
@@ -5902,14 +5927,15 @@ window.addEventListener('load', () => {
 
     // Daily mode: also dual-write to the dated leaderboard collection so
     // the score competes against today's pilots only, and notify the
-    // achievement system so 'Daily Pilot' can fire.
-    if (dailyMode && dailyDate && window.saveDailyHighScore) {
+    // achievement system so 'Daily Pilot' can fire. Cheat-active runs are
+    // withheld from the daily board too (same rule as the global board).
+    if (!runTainted && dailyMode && dailyDate && window.saveDailyHighScore) {
       window.saveDailyHighScore(name, score, dailyDate);
       if (window.Achievements) Achievements.notify('daily_score_submitted', { date: dailyDate });
     }
 
     if (window.logAnalyticsEvent) {
-      window.logAnalyticsEvent('submit_score', { pilot: name, score: score, daily: !!dailyMode });
+      window.logAnalyticsEvent('submit_score', { pilot: name, score: score, daily: !!dailyMode, tainted: runTainted });
     }
     document.getElementById('high-score-input-container').classList.add('hidden');
 
@@ -6183,6 +6209,10 @@ window.addEventListener('load', () => {
       GameAudio.playPowerUpSound();
     } else if (code === 'god') {
       cheatGod = true;
+      // Belt-and-suspenders: if god is somehow enabled while a run is live,
+      // taint it now. (Normally the cheat console is only reachable from the
+      // menu, where startGame handles the taint at run start.)
+      if (gameActive) runTainted = true;
       cheatMsg.style.color = 'var(--neon-cyan)';
       cheatMsg.innerText = 'CODENAME: NEON GOD SHIELD ONLINE!';
       GameAudio.playPowerUpSound();
@@ -6387,6 +6417,11 @@ function checkKonamiSequence(code) {
 
 function triggerDeathBlossom() {
   activePowerUps['DEATH_BLOSSOM'] = 8000; // 8 second window
+  // Mid-run DEATH BLOSSOM is a scoring advantage → taint the run so it
+  // can't be posted to the global/daily leaderboards. (Triggering it on
+  // the main menu does nothing here since gameActive is false, and the
+  // level-intro delay means a pre-run burst expires before combat.)
+  if (gameActive) runTainted = true;
   GameAudio.playLevelClearSound();
   if (player && typeof FloatingText !== 'undefined') {
     floatingTexts.push(new FloatingText(

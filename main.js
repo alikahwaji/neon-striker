@@ -736,6 +736,14 @@ function startGame() {
   scrapCredits = 0;
   maxHealth = 100;
   health = 100;
+
+  // Fresh run: clear the cheat-taint flag, then taint immediately if god
+  // mode (invincibility) is enabled — that's an unfair scoring advantage,
+  // so this run won't post to the global/daily leaderboards. DEATH BLOSSOM
+  // taints separately when triggered mid-run. (continueGame deliberately
+  // does NOT reset this, so a tainted run stays tainted across a continue.)
+  runTainted = false;
+  if (cheatGod) runTainted = true;
   
   playerUpgrades.speed = 1;
   playerUpgrades.shield = 1;
@@ -834,6 +842,12 @@ function showGameOverScreen() {
   } else {
     inputContainer.classList.add('hidden');
   }
+
+  // Tainted (cheat-active) runs: tell the pilot their score is local-only
+  // and won't appear on the global/daily boards. Shown regardless of the
+  // new-high-score check so the explanation is never hidden.
+  const taintNote = document.getElementById('cheat-disqualified-note');
+  if (taintNote) taintNote.classList.toggle('hidden', !runTainted);
 
   // Handle Continue button visibility — disabled in daily / boss-rush so
   // every pilot's score reflects a single uninterrupted attempt.
