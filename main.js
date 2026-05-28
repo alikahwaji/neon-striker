@@ -130,6 +130,11 @@ function loadAndStartLevel() {
   empShockwaves = [];
   debrisList = [];
   matrixStreams = [];
+  // Clear any active power-ups so they don't carry across levels/runs. Keys
+  // were already deleted on expiry (never a leak), but a still-running timer
+  // — e.g. a DEATH BLOSSOM triggered on the menu, or a Triple Shot left over
+  // from the previous sector — would otherwise bleed into the new level.
+  activePowerUps = {};
   dsLaserState = 'off';
   dsLaserTimer = 4000;
   empCooldownTimer = 0;
@@ -681,7 +686,15 @@ function updateGame(dt) {
     if (pup.y > CONFIG.height + 40) powerUps.splice(i, 1);
   }
 
-  // Update Particles
+  // Update Particles. Cap to MAX_PARTICLES first (mirrors the FloatingText
+  // cap above). Particles self-drain via alpha decay so they never leak, but
+  // simultaneous explosions (boss death + Death Blossom + asteroid splits)
+  // can transiently spike the array into the thousands — each one a shadowed
+  // arc per frame. Dropping the oldest bounds the worst-case frame cost.
+  const MAX_PARTICLES = 400;
+  if (particles.length > MAX_PARTICLES) {
+    particles.splice(0, particles.length - MAX_PARTICLES);
+  }
   for (let i = particles.length - 1; i >= 0; i--) {
     const p = particles[i];
     p.update(dt);
