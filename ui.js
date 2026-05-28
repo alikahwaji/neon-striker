@@ -39,8 +39,10 @@ function saveHighScore(name, scoreVal) {
   const sorted = board.sort((a, b) => b.score - a.score).slice(0, 8);
   localStorage.setItem('neon_striker_high_scores', JSON.stringify(sorted));
 
-  // If Firebase database is active, push the score to Firestore globally!
-  if (window.firebaseEnabled) {
+  // If Firebase database is active, push the score to Firestore globally —
+  // BUT withhold cheat-active runs (god mode / DEATH BLOSSOM). The local
+  // board above still records them; only the shared global board is gated.
+  if (window.firebaseEnabled && !runTainted) {
     window.saveGlobalHighScore(taggedName, scoreVal);
   }
 }
@@ -438,14 +440,15 @@ window.addEventListener('load', () => {
 
     // Daily mode: also dual-write to the dated leaderboard collection so
     // the score competes against today's pilots only, and notify the
-    // achievement system so 'Daily Pilot' can fire.
-    if (dailyMode && dailyDate && window.saveDailyHighScore) {
+    // achievement system so 'Daily Pilot' can fire. Cheat-active runs are
+    // withheld from the daily board too (same rule as the global board).
+    if (!runTainted && dailyMode && dailyDate && window.saveDailyHighScore) {
       window.saveDailyHighScore(name, score, dailyDate);
       if (window.Achievements) Achievements.notify('daily_score_submitted', { date: dailyDate });
     }
 
     if (window.logAnalyticsEvent) {
-      window.logAnalyticsEvent('submit_score', { pilot: name, score: score, daily: !!dailyMode });
+      window.logAnalyticsEvent('submit_score', { pilot: name, score: score, daily: !!dailyMode, tainted: runTainted });
     }
     document.getElementById('high-score-input-container').classList.add('hidden');
 
@@ -719,6 +722,10 @@ window.addEventListener('load', () => {
       GameAudio.playPowerUpSound();
     } else if (code === 'god') {
       cheatGod = true;
+      // Belt-and-suspenders: if god is somehow enabled while a run is live,
+      // taint it now. (Normally the cheat console is only reachable from the
+      // menu, where startGame handles the taint at run start.)
+      if (gameActive) runTainted = true;
       cheatMsg.style.color = 'var(--neon-cyan)';
       cheatMsg.innerText = 'CODENAME: NEON GOD SHIELD ONLINE!';
       GameAudio.playPowerUpSound();
@@ -923,6 +930,11 @@ function checkKonamiSequence(code) {
 
 function triggerDeathBlossom() {
   activePowerUps['DEATH_BLOSSOM'] = 8000; // 8 second window
+  // Mid-run DEATH BLOSSOM is a scoring advantage → taint the run so it
+  // can't be posted to the global/daily leaderboards. (Triggering it on
+  // the main menu does nothing here since gameActive is false, and the
+  // level-intro delay means a pre-run burst expires before combat.)
+  if (gameActive) runTainted = true;
   GameAudio.playLevelClearSound();
   if (player && typeof FloatingText !== 'undefined') {
     floatingTexts.push(new FloatingText(

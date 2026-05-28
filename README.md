@@ -67,12 +67,17 @@ Built on top of the modular **Firebase Web SDK v12.13.0** loaded directly from C
 
 ## 🛸 Retro Cheat Codes Console
 
-In the **System Parameters (Settings)** menu, click the retro console input field to type hidden access codes:
+In the **System Parameters (Settings)** menu, click the retro console input field to type hidden access codes. The codes are meant to be discovered — expand the spoiler below only if you want them revealed:
+
+<details>
+<summary>⚠️ SPOILER — reveal the secret codes</summary>
 
 1.  **`saucer`**: Transforms your vector ship outline into a rotating UFO Flying Saucer dome with spinning lights that fires glowing purple energy rings!
 2.  **`rainbow`**: Automatically cycles your fired lasers through the entire HSL color wheel dynamically!
 3.  **`god`**: Wraps your ship in an invincible white shield that absorbs all kinetic damage and floating text indicators!
 4.  **`matrix`**: Overrides the grids of all levels into green falling Katakana rain columns!
+
+</details>
 
 ---
 
