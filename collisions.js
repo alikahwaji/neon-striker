@@ -59,19 +59,22 @@ function destroyEnemy(enemy, eIndex) {
   }
   if (window.Achievements) Achievements.notify('enemy_destroyed', { type: enemy.type, combo: comboKills });
   if (window.Stats) Stats.notify('enemy_destroyed', { combo: comboKills });
-  GameAudio.playExplosionSound(enemy.type.startsWith('boss') || enemy.type === 'unicron' ? 2.2 : 0.85);
-  triggerScreenShake(enemy.type.startsWith('boss') || enemy.type === 'unicron' ? 0.9 : 0.25);
-  
-  spawnExplosionParticles(enemy.x + enemy.width/2, enemy.y + enemy.height/2, enemy.color, enemy.type.startsWith('boss') || enemy.type === 'unicron' ? 60 : 15);
+  // Pre-computed isBoss flag (set once in Enemy ctor) replaces the
+  // 4× repeated `startsWith('boss') || === 'unicron'` string scans below.
+  const big = enemy.isBoss;
+  GameAudio.playExplosionSound(big ? 2.2 : 0.85);
+  triggerScreenShake(big ? 0.9 : 0.25);
+
+  spawnExplosionParticles(enemy.x + enemy.width/2, enemy.y + enemy.height/2, enemy.color, big ? 60 : 15);
   spawnDebris(enemy.x + enemy.width/2, enemy.y + enemy.height/2, enemy.color);
 
   // Egg Hatch facehugger drones! (Level 12 Alien)
   if (enemy instanceof HatchingPod) {
     spawnFacehuggerDrones(enemy.x + enemy.width/2, enemy.y + enemy.height/2);
-  } 
+  }
   else {
     // Drop Nanotech scrap credits drops
-    const dropCount = enemy.type.startsWith('boss') || enemy.type === 'unicron' ? 12 : enemy.type === 'swarmer' ? 3 : 1;
+    const dropCount = big ? 12 : enemy.type === 'swarmer' ? 3 : 1;
     for (let d = 0; d < dropCount; d++) {
       scrapItems.push(new ScrapCredit(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2));
     }
@@ -350,7 +353,7 @@ function handleCollisions() {
     // Asteroid vs Enemies physical crash (highly tactical and exciting!)
     for (let e = enemies.length - 1; e >= 0; e--) {
       const enemy = enemies[e];
-      if (enemy.type.startsWith('boss') || enemy.type === 'sandworm' || enemy.type === 'unicron') continue;
+      if (enemy.isBoss) continue;
 
       const edx = enemy.x + enemy.width / 2 - ast.x;
       const edy = enemy.y + enemy.height / 2 - ast.y;
@@ -438,7 +441,8 @@ function applyPowerUp(type) {
     
     for (let e = enemies.length - 1; e >= 0; e--) {
       const enemy = enemies[e];
-      if (!enemy.type.startsWith('boss') && enemy.type !== 'sandworm') {
+      // BOMB clears non-bosses outright; bosses just take 25 dmg (see else).
+      if (!enemy.isBoss) {
         enemies.splice(e, 1);
         score += enemy.scoreValue;
         spawnExplosionParticles(enemy.x + enemy.width/2, enemy.y + enemy.height/2, enemy.color, 12);

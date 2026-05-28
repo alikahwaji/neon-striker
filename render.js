@@ -4,6 +4,17 @@
    Reads shared state from config.js + entities.js.
    ---------------------------------------------------- */
 
+// Pre-computed RGBA strings for matrix-rain trail chars, indexed by
+// alpha bucket (0 = transparent, 10 = opaque). Replaces the per-char
+// template-literal allocation that was the dominant string-alloc
+// source in the render loop (~500-1250 strings/frame on Lvl 17).
+const MATRIX_RAIN_COLOURS = [
+  'rgba(0, 255, 65, 0.0)', 'rgba(0, 255, 65, 0.1)', 'rgba(0, 255, 65, 0.2)',
+  'rgba(0, 255, 65, 0.3)', 'rgba(0, 255, 65, 0.4)', 'rgba(0, 255, 65, 0.5)',
+  'rgba(0, 255, 65, 0.6)', 'rgba(0, 255, 65, 0.7)', 'rgba(0, 255, 65, 0.8)',
+  'rgba(0, 255, 65, 0.9)', 'rgba(0, 255, 65, 1.0)'
+];
+
 /* ----------------------------------------------------
    BACKGROUND SCROLLING GRID RENDER
    ---------------------------------------------------- */
@@ -81,17 +92,23 @@ function drawSynthwaveBackground() {
       for (let j = 0; j < stream.length; j++) {
         const cy = stream.y - j * 16;
         if (cy < 0 || cy > CONFIG.height) continue;
-        
+
         const charCode = 0x30A0 + Math.floor(Math.random() * 96);
         const char = String.fromCharCode(charCode);
-        
+
         const isLeading = j === 0;
         if (isLeading) {
           ctx.fillStyle = '#ffffff';
           ctx.shadowColor = '#00ff41';
           ctx.shadowBlur = 10;
         } else {
-          ctx.fillStyle = `rgba(0, 255, 65, ${1.0 - j / stream.length})`;
+          // Quantise alpha to nearest 0.1 and look up the colour string
+          // from a precomputed table. Previously we built a fresh
+          // `rgba(0,255,65,${alpha})` template literal for every char —
+          // ~500-1250 string allocations per frame for the matrix rain
+          // alone. The LUT cuts allocations to zero in the steady state.
+          const a = 1.0 - j / stream.length;
+          ctx.fillStyle = MATRIX_RAIN_COLOURS[Math.min(10, Math.max(0, Math.round(a * 10)))];
           ctx.shadowBlur = 0;
         }
         ctx.fillText(char, stream.x, cy);
@@ -138,7 +155,7 @@ function drawSynthwaveBackground() {
     ctx.shadowColor = '#ff003c';
     ctx.fillStyle = '#ff003c';
     ctx.beginPath();
-    ctx.arc(CONFIG.width / 2, horizonY - 10, 15 + Math.sin(Date.now() / 200) * 3, 0, Math.PI * 2);
+    ctx.arc(CONFIG.width / 2, horizonY - 10, 15 + Math.sin(frameNow / 200) * 3, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = '#ffea00';
     ctx.beginPath();
@@ -299,10 +316,10 @@ function drawGame() {
     if (dsLaserState === 'charging') {
       // Pulsing warning thin targeting lines
       ctx.strokeStyle = '#39ff14';
-      ctx.lineWidth = 1.5 + Math.sin(Date.now() / 30) * 1.0;
+      ctx.lineWidth = 1.5 + Math.sin(frameNow / 30) * 1.0;
       ctx.shadowBlur = 10;
       ctx.shadowColor = '#39ff14';
-      ctx.globalAlpha = 0.4 + Math.sin(Date.now() / 50) * 0.3;
+      ctx.globalAlpha = 0.4 + Math.sin(frameNow / 50) * 0.3;
       
       // Draw 2 thin charging bounds lines
       ctx.beginPath();
