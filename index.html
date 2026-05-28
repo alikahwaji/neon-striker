@@ -228,7 +228,11 @@
                sits beneath without taking permanent vertical space. -->
           <div class="setting-item cheat-section">
             <label for="cheat-input" class="cheat-label">🎮 ENTER SECRET CODE</label>
-            <input type="text" id="cheat-input" class="cheat-input" placeholder="e.g. SAUCER" maxlength="20">
+            <!-- Placeholder is intentionally generic: it must NOT reveal a real
+                 code (it used to say "e.g. SAUCER", which is a working cheat —
+                 players were typing the example and unlocking the saucer ship).
+                 Codes are meant to be discovered, so keep this a neutral prompt. -->
+            <input type="text" id="cheat-input" class="cheat-input" placeholder="ENTER ACCESS CODE…" maxlength="20">
             <button id="btn-submit-cheat" class="btn-cheat">APPLY</button>
             <span id="cheat-msg" class="cheat-msg"></span>
           </div>
