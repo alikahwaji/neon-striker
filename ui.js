@@ -1029,7 +1029,7 @@ function showAchievementToast(def) {
   toast.classList.remove('hidden');
   // Subtle audio confirmation — reuse the existing power-up chime to keep
   // the synth palette consistent.
-  if (window.GameAudio && typeof GameAudio.playPowerUpSound === 'function') {
+  if (typeof GameAudio !== 'undefined' && typeof GameAudio.playPowerUpSound === 'function') {
     GameAudio.playPowerUpSound();
   }
   if (achToastTimer) clearTimeout(achToastTimer);

@@ -1,0 +1,15 @@
+{
+  "name": "neon-striker",
+  "version": "1.0.0",
+  "description": "Synthwave HTML5 Canvas space shooter — vanilla JS, Firebase leaderboard.",
+  "private": true,
+  "scripts": {
+    "build": "node build.js",
+    "build:check": "node build.js --check"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/alikahwaji/neon-striker.git"
+  },
+  "license": "MIT"
+}

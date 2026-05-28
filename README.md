@@ -112,5 +112,21 @@ Because Neon Striker is serverless and zero-dependency, you don't need to run an
 
 ---
 
+## 🛠️ Building (after editing gameplay source)
+
+The gameplay scripts (`audio.js`, `config.js`, `entities.js`, `render.js`, `collisions.js`, `achievements.js`, `stats.js`, `main.js`, `ui.js`) are concatenated into a single **`game.bundle.js`** wrapped in one IIFE. This keeps game state (`scrapCredits`, `score`, etc.) inside a private scope so it can't be trivially edited from the browser DevTools console — a lightweight **anti-cheat deterrent**. `index.html` loads `game.bundle.js`, not the individual files.
+
+After editing any source file, regenerate the bundle:
+
+```bash
+node build.js        # or: npm run build
+```
+
+A CI check (`.github/workflows/bundle-check.yml`) fails any PR where `game.bundle.js` is out of date with its sources, so a stale bundle can't reach production. `database.js` is intentionally **not** bundled — it stays an ES module so its Firebase config + `window.*` leaderboard bridge load independently.
+
+> **Note:** this is a deterrent, not true anti-cheat. Because the game is 100% client-side, a determined user can still tamper via Sources-panel breakpoints. Leaderboard integrity is additionally enforced server-side by [`firestore.rules`](firestore.rules) (score cap + shape validation). True tamper-proof scoring would require server-authoritative validation (a Cloud Function).
+
+---
+
 ## 📜 MIT License
 Distributed under the MIT License. See [LICENSE](LICENSE) for more information.

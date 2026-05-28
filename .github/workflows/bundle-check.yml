@@ -1,0 +1,36 @@
+name: Bundle freshness check
+
+# Ensures game.bundle.js is regenerated whenever a gameplay source file
+# changes. If a contributor edits e.g. config.js but forgets to run
+# `node build.js`, this fails the PR rather than silently shipping a stale
+# bundle to GitHub Pages.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - 'audio.js'
+      - 'config.js'
+      - 'entities.js'
+      - 'render.js'
+      - 'collisions.js'
+      - 'achievements.js'
+      - 'stats.js'
+      - 'main.js'
+      - 'ui.js'
+      - 'build.js'
+      - 'game.bundle.js'
+
+jobs:
+  check-bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Verify game.bundle.js is up to date
+        run: node build.js --check
+      - name: Syntax-check the bundle
+        run: node --check game.bundle.js
