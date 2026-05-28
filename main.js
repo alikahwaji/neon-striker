@@ -881,7 +881,11 @@ function getHudRefs() {
     healthFill: document.getElementById('hud-health-fill'),
     empContainer: document.getElementById('hud-emp-container'),
     empFill: document.getElementById('hud-emp-fill'),
-    powerups: document.getElementById('hud-powerups')
+    powerups: document.getElementById('hud-powerups'),
+    hudTop: document.querySelector('.hud-top'),
+    // comboChip is lazy-created (first time the multiplier crosses ×2),
+    // then cached here so subsequent updates skip the getElementById call.
+    comboChip: null
   };
   return hudRefs;
 }
@@ -910,21 +914,23 @@ function updateHud(dt) {
 
   // Combo multiplier chip — visible only when ×2 or higher. Lazily
   // creates the DOM node on first use so it doesn't clutter the HUD
-  // for the long stretches where there's no chain going.
+  // for the long stretches where there's no chain going. The chip ref
+  // (and its .hud-top parent) live in hudRefs so we don't run a
+  // getElementById / querySelector on every multiplier-change frame.
   const comboMult = getComboMultiplier();
   if (comboMult !== hudLast.comboMult) {
-    let chip = document.getElementById('hud-combo-chip');
     if (comboMult >= 2) {
-      if (!chip) {
-        chip = document.createElement('div');
+      if (!r.comboChip) {
+        const chip = document.createElement('div');
         chip.id = 'hud-combo-chip';
         chip.className = 'hud-combo-chip';
-        document.querySelector('.hud-top').appendChild(chip);
+        if (r.hudTop) r.hudTop.appendChild(chip);
+        r.comboChip = chip;
       }
-      chip.textContent = `×${comboMult}`;
-      chip.classList.remove('hidden');
-    } else if (chip) {
-      chip.classList.add('hidden');
+      r.comboChip.textContent = `×${comboMult}`;
+      r.comboChip.classList.remove('hidden');
+    } else if (r.comboChip) {
+      r.comboChip.classList.add('hidden');
     }
     hudLast.comboMult = comboMult;
   }

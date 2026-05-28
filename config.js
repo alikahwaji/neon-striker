@@ -145,6 +145,15 @@ let criticalHeartbeatTimer = 0;
 // so cross-effect animations stay phase-locked. */
 let frameNow = 0;
 
+// Monotonic ID counter for entities that need cheap O(1) dedup keys.
+// Used by piercing-laser collision tracking: instead of allocating a
+// new Set() per pierce-laser to remember "did I hit this enemy already?",
+// the laser keeps a plain Object.create(null) keyed by entity.id. Set
+// allocation + .has()/.add() overhead is replaced by a single property
+// lookup. Numeric ids never collide because each entity ctor bumps the
+// counter exactly once.
+let nextEntityId = 0;
+
 // Score combo multiplier state. Each consecutive kill within COMBO_WINDOW_MS
 // of the previous bumps comboKills; the multiplier is derived from
 // comboKills (3 kills → ×2, 7 → ×3, 12 → ×4, 20 → ×5). Reset to 0 on any

@@ -107,9 +107,11 @@ function handleCollisions() {
         // Frontal deflection check for blockers
         if (enemy.type === 'shieldBlocker' && laser.vy < 0) {
           if (laser.piercing) {
-            if (!laser.hitEnemies) laser.hitEnemies = new Set();
-            if (!laser.hitEnemies.has(enemy)) {
-              laser.hitEnemies.add(enemy);
+            // Plain object keyed by entity.id replaces Set — avoids
+            // allocator + .has/.add overhead on each pierce/laser pair.
+            if (!laser.hitEnemies) laser.hitEnemies = Object.create(null);
+            if (!laser.hitEnemies[enemy.id]) {
+              laser.hitEnemies[enemy.id] = true;
               floatingTexts.push(new FloatingText(laser.x, laser.y - 10, "DEFLECTED", '#00f0ff'));
               GameAudio.playHitSound();
             }
@@ -124,14 +126,14 @@ function handleCollisions() {
         }
 
         if (laser.piercing) {
-          if (!laser.hitEnemies) laser.hitEnemies = new Set();
-          if (laser.hitEnemies.has(enemy)) continue;
-          laser.hitEnemies.add(enemy);
+          if (!laser.hitEnemies) laser.hitEnemies = Object.create(null);
+          if (laser.hitEnemies[enemy.id]) continue;
+          laser.hitEnemies[enemy.id] = true;
         } else {
           playerLasers.splice(l, 1);
           hitSomething = true;
         }
-        
+
         const destroyed = enemy.takeDamage(laser.damage || 1);
         spawnSparkParticles(laser.x, laser.y, enemy.color);
 
@@ -154,9 +156,9 @@ function handleCollisions() {
 
       if (ldx * ldx + ldy * ldy < reach * reach) {
         if (laser.piercing) {
-          if (!laser.hitAsteroids) laser.hitAsteroids = new Set();
-          if (laser.hitAsteroids.has(ast)) continue;
-          laser.hitAsteroids.add(ast);
+          if (!laser.hitAsteroids) laser.hitAsteroids = Object.create(null);
+          if (laser.hitAsteroids[ast.id]) continue;
+          laser.hitAsteroids[ast.id] = true;
         } else {
           playerLasers.splice(l, 1);
         }
