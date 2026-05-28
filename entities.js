@@ -591,6 +591,9 @@ class Asteroid {
     this.health = this.maxHealth;
     this.width = this.radius * 2;
     this.height = this.radius * 2;
+    // Cheap O(1) dedup key for piercing-laser + EMP hit tracking. Mirrors
+    // the Enemy.id pattern — see config.js `nextEntityId` comment.
+    this.id = ++nextEntityId;
   }
 
   update(dt) {
@@ -791,6 +794,10 @@ class Enemy {
     // || === 'unicron'` 4× per damage event + per asteroid-vs-enemy pair
     // (was a hot path on Lvl 9 / endless / boss fights).
     this.isBoss = (type === 'boss' || type === 'boss2' || type === 'sandworm' || type === 'unicron');
+    // Cheap O(1) dedup key for piercing-laser hit tracking. Plain numeric
+    // id is faster + lighter than referring to the entity by reference in
+    // a Set (see laser.hitEnemies in collisions.js).
+    this.id = ++nextEntityId;
   }
 
   update(dt) {
@@ -1141,8 +1148,11 @@ class Enemy {
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
-      
-      ctx.save();
+
+      // Inner save/restore dropped — the outer draw() save (line 1062)
+      // already restores strokeStyle / shadowColor / shadowBlur / lineWidth
+      // when this enemy is done, and shieldBlocker is not a boss so the
+      // health-bar branch below doesn't fire.
       ctx.strokeStyle = '#00f0ff';
       ctx.shadowColor = '#00f0ff';
       ctx.shadowBlur = 12;
@@ -1150,7 +1160,6 @@ class Enemy {
       ctx.beginPath();
       ctx.arc(this.x + this.width / 2, this.y + this.height + 6, this.width / 2 + 4, Math.PI * 0.15, Math.PI * 0.85);
       ctx.stroke();
-      ctx.restore();
     }
     else if (this.type === 'sniper') {
       ctx.beginPath();
@@ -1165,12 +1174,15 @@ class Enemy {
       ctx.fillRect(this.x + this.width / 2 - 3, this.y + this.height, 6, 6);
       
       if (player && gameActive && !gamePaused) {
-        ctx.save();
+        // Inner save/restore dropped — outer draw() save (line 1062)
+        // already restores strokeStyle / shadowColor / shadowBlur /
+        // lineWidth / lineDash, and sniper is not a boss so no health-bar
+        // draw inherits the dashed beam state.
         const px = player.x + player.width / 2;
         const py = player.y + player.height / 2;
         const sx = this.x + this.width / 2;
         const sy = this.y + this.height;
-        
+
         const progress = this.chargeTimer / 1800;
         ctx.strokeStyle = `rgba(255, ${Math.floor(255 * progress)}, ${Math.floor(60 * progress)}, ${0.15 + progress * 0.65})`;
         ctx.shadowColor = '#ff003c';
@@ -1181,7 +1193,6 @@ class Enemy {
         ctx.moveTo(sx, sy);
         ctx.lineTo(px, py);
         ctx.stroke();
-        ctx.restore();
       }
     }
     else if (this.type === 'lightCycle') {
@@ -1257,8 +1268,10 @@ class Enemy {
       ctx.fill();
       
       ctx.restore();
-      
-      ctx.save();
+
+      // Inner save/restore dropped here — the outer draw() save (line 1062)
+      // already restores transform / fillStyle / strokeStyle, and sentry is
+      // not a boss so no health-bar code below inherits the rotated frame.
       ctx.translate(sx, sy);
       ctx.rotate(this.angle);
       ctx.strokeStyle = this.color;
@@ -1269,7 +1282,6 @@ class Enemy {
       ctx.stroke();
       ctx.fillRect(0, -2, 14, 4);
       ctx.strokeRect(0, -2, 14, 4);
-      ctx.restore();
     }
     else if (this.type === 'unicron') {
       const cx = this.x + this.width / 2;
@@ -1892,7 +1904,9 @@ class EMPShockwave {
     this.maxRadius = 350;
     this.speed = 12;
     this.damage = 2;
-    this.hitEnemies = new Set();
+    // Plain object dedup keyed by enemy.id — faster + lighter than Set
+    // for the typical few-enemy hit set during a single shockwave sweep.
+    this.hitEnemies = Object.create(null);
     
     GameAudio.playBombSound();
     traumaLevel = Math.min(1.0, traumaLevel + 0.4);
@@ -1933,7 +1947,7 @@ class EMPShockwave {
     // Stunning and damaging close enemies
     for (let e = enemies.length - 1; e >= 0; e--) {
       const enemy = enemies[e];
-      if (this.hitEnemies.has(enemy)) continue;
+      if (this.hitEnemies[enemy.id]) continue;
       
       const ex = enemy.x + enemy.width / 2;
       const ey = enemy.y + enemy.height / 2;
@@ -1942,7 +1956,7 @@ class EMPShockwave {
       const dist = Math.sqrt(dx * dx + dy * dy);
       
       if (dist <= this.radius) {
-        this.hitEnemies.add(enemy);
+        this.hitEnemies[enemy.id] = true;
         const destroyed = enemy.takeDamage(this.damage);
         
         for (let j = 0; j < 6; j++) {
