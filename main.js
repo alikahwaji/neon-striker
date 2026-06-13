@@ -16,8 +16,8 @@ function handleWaveSpawning(dt) {
     }
   }
 
-  // Random Asteroid drops check (Level 2, 8, 9)
-  const lvlData = LEVEL_DATABASE[currentLevel] || {};
+  // Random Asteroid drops check (Level 2, 8, 9, endless sectors)
+  const lvlData = activeLevelData || {};
   if (lvlData.asteroidChance && gameActive && !gamePaused) {
     if (Math.random() < lvlData.asteroidChance) {
       const rx = Math.random() * (CONFIG.width - 80) + 40;
@@ -49,11 +49,42 @@ function handleWaveSpawning(dt) {
       wallTurrets.push(new WallTurret(rx, -40, side));
     }
   }
+
+  // Level 14 Indestructible Monolith slabs — the HAL level's quote promises
+  // 'Monolith block shields active'. They live in the asteroids array so the
+  // existing laser-block + ship-crash handling in collisions.js applies.
+  // Gated on enemies remaining so a late slab can't stall the level-clear
+  // check (clear waits for asteroids[] to empty), capped at 2 on screen so
+  // the corridor never becomes undodgeable.
+  if (lvlData.monoliths && gameActive && !gamePaused && enemies.length > 0) {
+    let monolithCount = 0;
+    for (let i = 0; i < asteroids.length; i++) {
+      if (asteroids[i] instanceof Monolith) monolithCount++;
+    }
+    if (monolithCount < 2 && Math.random() < 0.006) {
+      const rx = Math.random() * (CONFIG.width - 210) + 80;
+      asteroids.push(new Monolith(rx, -120));
+    }
+  }
 }
 
 function triggerLevelClear() {
   gameActive = false;
   GameAudio.playLevelClearSound();
+
+  // PERFECT SECTOR bonus — clearing a level without a single point of hull
+  // damage pays out score + scrap. Shield-pickup absorbs don't break the
+  // streak (consistent with the Untouchable achievement); the bonus lands
+  // BEFORE the shop's scrap readout below so the reward is spendable
+  // immediately. Announced via the toast (canvas floating texts freeze
+  // once gameActive flips false).
+  if (!levelDamageTaken) {
+    score += 500;
+    scrapCredits += 50;
+    if (typeof showBonusToast === 'function') {
+      showBonusToast('💎', 'PERFECT SECTOR! +500 PTS / +50 ⚙');
+    }
+  }
 
   // Achievement check fires BEFORE we open the shop — the level_cleared
   // payload carries currentLevel, and Untouchable inspects perRun damage
@@ -138,6 +169,12 @@ function loadAndStartLevel() {
   dsLaserState = 'off';
   dsLaserTimer = 4000;
   empCooldownTimer = 0;
+
+  // Publish this sector's resolved data for every per-frame consumer
+  // (spawning, themes, trench walls, gravity, bullet-time) and reset the
+  // PERFECT SECTOR tracker for the new level.
+  activeLevelData = lvlData || {};
+  levelDamageTaken = false;
 
   // Reset player position
   if (player) {
@@ -372,7 +409,7 @@ function triggerScreenShake(intensity) {
    GAME CORE UPDATE LOOP
    ---------------------------------------------------- */
 function updateGame(dt) {
-  const lvlData = LEVEL_DATABASE[currentLevel] || {};
+  const lvlData = activeLevelData || {};
 
   // Bullet-Time active checks in Level 17 Matrix theme:
   if (lvlData.theme === 'matrix' && gameActive && !gamePaused) {
@@ -472,6 +509,9 @@ function updateGame(dt) {
 
     if (ast.y > CONFIG.height + 40) {
       asteroids.splice(i, 1);
+      // Monolith slabs are indestructible scenery — letting one drift past
+      // is the ONLY way to deal with it, so exiting must never cost HP.
+      if (ast instanceof Monolith) continue;
       // Damaging structural base — was previously SILENT (no on-screen cue
       // when an asteroid slipped past), which made Level 2's high-rate
       // asteroid storm feel like random unprovoked HP loss. Now fires a

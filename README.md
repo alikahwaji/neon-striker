@@ -39,6 +39,7 @@ Gather green **Nanotech Scrap (⚙️)** in battle and trade it in the modular H
 *   **🌀 Active EMP Shockwave Module**: Clears all hostile bullet vectors in a `350px` expanding electric ring and stuns targets for `1.8s`.
 *   **🧲 Scrap Magnet nanotech**: Vacuum green nanotech scrap credits from a wide attraction radius of `240px` automatically.
 *   **🎨 Ship Paint Customizer**: Repaint your fighter dynamically in **Cyber Cyan**, **Toxic Acid**, **Solar Flare**, **Void Dust**, or **Glitch Rainbow** (dynamic HSL cycle).
+*   **💎 Perfect Sector Bonus**: Clear any sector without taking a single point of hull damage to bank **+500 score and +50 scrap** on the spot (shield-pickup absorbs don't break the streak).
 
 ### 🟢🔵🔴 4. Inclusive Difficulty Engine
 *   **Cadet (Easy Mode)**: `200` max HP, `30%` slower enemy lasers, half gravitation pull, and checkpoint continues preserve scores with a `[CADET]` badge.
@@ -67,7 +68,7 @@ Built on top of the modular **Firebase Web SDK v12.13.0** loaded directly from C
 
 ## 🛸 Retro Cheat Codes Console
 
-In the **System Parameters (Settings)** menu, click the retro console input field to type hidden access codes. The codes are meant to be discovered — expand the spoiler below only if you want them revealed:
+In the **System Parameters (Settings)** menu, click the retro console input field to type hidden access codes. Every code is a **toggle** — enter it a second time to switch the effect back off (the console lists your currently-active codes whenever you open Settings). The codes are meant to be discovered — expand the spoiler below only if you want them revealed:
 
 <details>
 <summary>⚠️ SPOILER — reveal the secret codes</summary>

@@ -747,6 +747,22 @@ let score = 0;
 let highScore = 0;
 let currentLevel = 1;
 
+// The level data the CURRENT sector is actually running with. Set once in
+// loadAndStartLevel() from whichever source applies (campaign / boss rush /
+// endless). Every per-frame consumer (wave spawning, theme rendering,
+// trench walls, black-hole gravity, bullet-time) must read THIS instead of
+// LEVEL_DATABASE[currentLevel] — the raw lookup silently leaked campaign
+// level 1-4 features into Boss Rush (whose currentLevel is 1..4) and made
+// every generated Endless-sector feature (themes, asteroid storms) dead,
+// since LEVEL_DATABASE has no entries past 20.
+let activeLevelData = {};
+
+// True once the player takes HULL damage during the current sector (shield
+// pickup absorbs and god mode don't count, matching the Untouchable
+// achievement's definition). Reset in loadAndStartLevel; read at level
+// clear to award the PERFECT SECTOR bonus.
+let levelDamageTaken = false;
+
 // All-Ages Expansion globals
 let selectedDifficulty = 'hero'; // 'cadet', 'hero', 'elite'
 let selectedSkin = 'default';    // 'default', 'toxic', 'solar', 'void', 'saucer'
@@ -945,7 +961,7 @@ const LEVEL_DATABASE = {
   },
   4: {
     title: "LEVEL 4",
-    subtitle: "SHIELD CRUSER INTRUSION",
+    subtitle: "SHIELD CRUISER INTRUSION",
     theme: "standard",
     quote: "Heavy swarmers incoming. Their outer shields absorb single laser hits. Overcharge active.",
     enemyGrid: { rows: 3, cols: 6, scouts: true, swarmers: true, kamikazes: false }
@@ -1025,6 +1041,7 @@ const LEVEL_DATABASE = {
     theme: "standard",
     quote: "'I'm sorry, Dave. I'm afraid I can't do that.' Indestructible Monolith block shields active. HAL core eye observing.",
     halEye: true,
+    monoliths: true,
     enemyGrid: { rows: 2, cols: 5, scouts: true, swarmers: false, kamikazes: true }
   },
   15: {
@@ -1053,7 +1070,7 @@ const LEVEL_DATABASE = {
     title: "LEVEL 18",
     subtitle: "COLONY SECURITY SENTRY",
     theme: "wey_sentry",
-    quote: "Weyland perimeter perimeter alert. Sentry searchlights scanning quadrants. Evade or destroy lock-on cones.",
+    quote: "Weyland perimeter alert. Sentry searchlights scanning quadrants. Evade or destroy lock-on cones.",
     enemyGrid: { rows: 2, cols: 4, scouts: true, swarmers: false, kamikazes: false, sentries: true, snipers: true }
   },
   19: {
@@ -1145,7 +1162,7 @@ class PlayerShip {
     // at its max-Y position.
     let maxY = CONFIG.height - this.height - 55;
     
-    const lvlData = LEVEL_DATABASE[currentLevel] || {};
+    const lvlData = activeLevelData || {};
     if (lvlData.trenchWalls) {
       // Trench Run constrains player to middle corridor (200px to 600px)
       minX = 210;
@@ -3139,7 +3156,7 @@ const MATRIX_RAIN_COLOURS = [
    BACKGROUND SCROLLING GRID RENDER
    ---------------------------------------------------- */
 function drawSynthwaveBackground() {
-  const lvlData = LEVEL_DATABASE[currentLevel] || {};
+  const lvlData = activeLevelData || {};
   
   // Set backdrop colors based on level style
   if (lvlData.theme === 'spice') {
@@ -3426,7 +3443,7 @@ function drawGame() {
   // Draw scrolling backgrounds
   drawSynthwaveBackground();
 
-  const lvlData = LEVEL_DATABASE[currentLevel] || {};
+  const lvlData = activeLevelData || {};
 
   // Draw Death Star Reactor Beam (Level 19)
   if (lvlData.dsCoreLaser && (dsLaserState === 'charging' || dsLaserState === 'firing')) {
@@ -3796,7 +3813,11 @@ function handleCollisions() {
         laser.y - laser.height < player.y + player.height) {
       
       enemyLasers.splice(l, 1);
-      damagePlayer(15);
+      // Heavy bolts (sniper charge shots carry damage 2) hit harder than
+      // standard fire — matches their long charge-up telegraph. Previously
+      // every enemy laser dealt a flat 15 and the sniper's damage stat was
+      // silently ignored.
+      damagePlayer(laser.damage >= 2 ? 25 : 15);
     }
   }
 
@@ -3909,7 +3930,7 @@ function handleCollisions() {
   }
 
   // 8. Wall Conduit Collisions (Trench Run)
-  const lvlData = LEVEL_DATABASE[currentLevel] || {};
+  const lvlData = activeLevelData || {};
   if (lvlData.trenchWalls) {
     if (player.x < 205 || player.x + player.width > 595) {
       damagePlayer(2); // Trench wall thermal friction damage
@@ -3955,6 +3976,10 @@ function damagePlayer(amount) {
   // to play perfectly to keep their multiplier — that's the skill expression.
   comboKills = 0;
   comboTimer = 0;
+
+  // Hull damage landed → this sector no longer qualifies for the
+  // PERFECT SECTOR clear bonus (see triggerLevelClear in main.js).
+  levelDamageTaken = true;
 
   health = Math.max(0, health - amount);
   triggerScreenShake(0.5);
@@ -4462,8 +4487,8 @@ function handleWaveSpawning(dt) {
     }
   }
 
-  // Random Asteroid drops check (Level 2, 8, 9)
-  const lvlData = LEVEL_DATABASE[currentLevel] || {};
+  // Random Asteroid drops check (Level 2, 8, 9, endless sectors)
+  const lvlData = activeLevelData || {};
   if (lvlData.asteroidChance && gameActive && !gamePaused) {
     if (Math.random() < lvlData.asteroidChance) {
       const rx = Math.random() * (CONFIG.width - 80) + 40;
@@ -4495,11 +4520,42 @@ function handleWaveSpawning(dt) {
       wallTurrets.push(new WallTurret(rx, -40, side));
     }
   }
+
+  // Level 14 Indestructible Monolith slabs — the HAL level's quote promises
+  // 'Monolith block shields active'. They live in the asteroids array so the
+  // existing laser-block + ship-crash handling in collisions.js applies.
+  // Gated on enemies remaining so a late slab can't stall the level-clear
+  // check (clear waits for asteroids[] to empty), capped at 2 on screen so
+  // the corridor never becomes undodgeable.
+  if (lvlData.monoliths && gameActive && !gamePaused && enemies.length > 0) {
+    let monolithCount = 0;
+    for (let i = 0; i < asteroids.length; i++) {
+      if (asteroids[i] instanceof Monolith) monolithCount++;
+    }
+    if (monolithCount < 2 && Math.random() < 0.006) {
+      const rx = Math.random() * (CONFIG.width - 210) + 80;
+      asteroids.push(new Monolith(rx, -120));
+    }
+  }
 }
 
 function triggerLevelClear() {
   gameActive = false;
   GameAudio.playLevelClearSound();
+
+  // PERFECT SECTOR bonus — clearing a level without a single point of hull
+  // damage pays out score + scrap. Shield-pickup absorbs don't break the
+  // streak (consistent with the Untouchable achievement); the bonus lands
+  // BEFORE the shop's scrap readout below so the reward is spendable
+  // immediately. Announced via the toast (canvas floating texts freeze
+  // once gameActive flips false).
+  if (!levelDamageTaken) {
+    score += 500;
+    scrapCredits += 50;
+    if (typeof showBonusToast === 'function') {
+      showBonusToast('💎', 'PERFECT SECTOR! +500 PTS / +50 ⚙');
+    }
+  }
 
   // Achievement check fires BEFORE we open the shop — the level_cleared
   // payload carries currentLevel, and Untouchable inspects perRun damage
@@ -4584,6 +4640,12 @@ function loadAndStartLevel() {
   dsLaserState = 'off';
   dsLaserTimer = 4000;
   empCooldownTimer = 0;
+
+  // Publish this sector's resolved data for every per-frame consumer
+  // (spawning, themes, trench walls, gravity, bullet-time) and reset the
+  // PERFECT SECTOR tracker for the new level.
+  activeLevelData = lvlData || {};
+  levelDamageTaken = false;
 
   // Reset player position
   if (player) {
@@ -4818,7 +4880,7 @@ function triggerScreenShake(intensity) {
    GAME CORE UPDATE LOOP
    ---------------------------------------------------- */
 function updateGame(dt) {
-  const lvlData = LEVEL_DATABASE[currentLevel] || {};
+  const lvlData = activeLevelData || {};
 
   // Bullet-Time active checks in Level 17 Matrix theme:
   if (lvlData.theme === 'matrix' && gameActive && !gamePaused) {
@@ -4918,6 +4980,9 @@ function updateGame(dt) {
 
     if (ast.y > CONFIG.height + 40) {
       asteroids.splice(i, 1);
+      // Monolith slabs are indestructible scenery — letting one drift past
+      // is the ONLY way to deal with it, so exiting must never cost HP.
+      if (ast instanceof Monolith) continue;
       // Damaging structural base — was previously SILENT (no on-screen cue
       // when an asteroid slipped past), which made Level 2's high-rate
       // asteroid storm feel like random unprovoked HP loss. Now fires a
@@ -5615,6 +5680,18 @@ async function updateLeaderboardUI() {
       }
     } catch (e) {
       console.warn('Failed to load daily scores:', e);
+      // Replace the loading shimmer with a real error state — previously a
+      // failed fetch left '🌙 LOADING TODAY'S RUNS...' blinking forever.
+      body.innerHTML = '';
+      const tr = document.createElement('tr');
+      const td = document.createElement('td');
+      td.colSpan = 3;
+      td.className = 'text-center font-mono';
+      td.style.padding = '2.5rem 0';
+      td.style.color = '#ff003c';
+      td.textContent = 'Daily board unreachable — check your connection and retry.';
+      tr.append(td);
+      body.append(tr);
     }
     return;
   }
@@ -5835,6 +5912,12 @@ window.addEventListener('load', () => {
   document.getElementById('btn-settings').addEventListener('click', () => {
     document.getElementById('start-menu').classList.add('hidden');
     document.getElementById('settings-menu').classList.remove('hidden');
+    // Surface any persisted-on cheats in the console status line. Cheats
+    // survive sessions via settings, so without this a player could be
+    // running (and leaderboard-tainted by) god mode from weeks ago with
+    // zero visible indication. Only names of ALREADY-active codes show,
+    // so nothing undiscovered is spoiled.
+    refreshCheatStatusLine();
   });
 
   document.getElementById('btn-settings-back').addEventListener('click', () => {
@@ -6204,35 +6287,52 @@ window.addEventListener('load', () => {
   const cheatInput = document.getElementById('cheat-input');
   const cheatMsg = document.getElementById('cheat-msg');
   
+  // Every code is a TOGGLE: enter it again to switch the cheat back off.
+  // Cheats persist across sessions via settings, so before this a single
+  // 'god' entry latched invincibility on FOREVER — permanently withholding
+  // the player's runs from the global leaderboard with no way back.
   function applyCheat() {
     const code = cheatInput.value.trim().toLowerCase();
     if (!code) return;
 
     let recognised = true;
+    let activated = false;
     if (code === 'saucer') {
-      selectedSkin = 'saucer';
-      paintBtns.forEach(b => b.classList.remove('active'));
-      cheatMsg.style.color = 'var(--neon-cyan)';
-      cheatMsg.innerText = 'CODENAME: UFO SAUCER ACTIVATED!';
+      if (selectedSkin === 'saucer') {
+        selectedSkin = 'default';
+        paintBtns.forEach(b => b.classList.toggle('active', b.getAttribute('data-skin') === 'default'));
+        cheatMsg.style.color = 'var(--neon-yellow)';
+        cheatMsg.innerText = 'UFO SAUCER OFF — CYBER CYAN RESTORED';
+      } else {
+        activated = true;
+        selectedSkin = 'saucer';
+        paintBtns.forEach(b => b.classList.remove('active'));
+        cheatMsg.style.color = 'var(--neon-cyan)';
+        cheatMsg.innerText = 'CODENAME: UFO SAUCER ACTIVATED!';
+      }
       GameAudio.playPowerUpSound();
     } else if (code === 'rainbow') {
-      cheatRainbow = true;
-      cheatMsg.style.color = 'var(--neon-cyan)';
-      cheatMsg.innerText = 'CODENAME: RAINBOW WEAPONS ACTIVE!';
+      cheatRainbow = !cheatRainbow;
+      activated = cheatRainbow;
+      cheatMsg.style.color = cheatRainbow ? 'var(--neon-cyan)' : 'var(--neon-yellow)';
+      cheatMsg.innerText = cheatRainbow ? 'CODENAME: RAINBOW WEAPONS ACTIVE!' : 'RAINBOW WEAPONS DISENGAGED';
       GameAudio.playPowerUpSound();
     } else if (code === 'god') {
-      cheatGod = true;
+      cheatGod = !cheatGod;
+      activated = cheatGod;
       // Belt-and-suspenders: if god is somehow enabled while a run is live,
       // taint it now. (Normally the cheat console is only reachable from the
-      // menu, where startGame handles the taint at run start.)
-      if (gameActive) runTainted = true;
-      cheatMsg.style.color = 'var(--neon-cyan)';
-      cheatMsg.innerText = 'CODENAME: NEON GOD SHIELD ONLINE!';
+      // menu, where startGame handles the taint at run start.) Toggling god
+      // OFF mid-run deliberately does NOT untaint — the run already benefited.
+      if (cheatGod && gameActive) runTainted = true;
+      cheatMsg.style.color = cheatGod ? 'var(--neon-cyan)' : 'var(--neon-yellow)';
+      cheatMsg.innerText = cheatGod ? 'CODENAME: NEON GOD SHIELD ONLINE!' : 'GOD SHIELD POWERED DOWN';
       GameAudio.playPowerUpSound();
     } else if (code === 'matrix') {
-      cheatMatrix = true;
-      cheatMsg.style.color = 'var(--neon-cyan)';
-      cheatMsg.innerText = 'CODENAME: SYSTEM CODE OVERRIDE!';
+      cheatMatrix = !cheatMatrix;
+      activated = cheatMatrix;
+      cheatMsg.style.color = cheatMatrix ? 'var(--neon-cyan)' : 'var(--neon-yellow)';
+      cheatMsg.innerText = cheatMatrix ? 'CODENAME: SYSTEM CODE OVERRIDE!' : 'SYSTEM OVERRIDE REVERTED';
       GameAudio.playPowerUpSound();
     } else {
       recognised = false;
@@ -6242,11 +6342,27 @@ window.addEventListener('load', () => {
     }
     if (recognised) {
       persistSettings();
-      if (window.Achievements) Achievements.notify('cheat_entered', { code });
+      if (activated && window.Achievements) Achievements.notify('cheat_entered', { code });
     }
     cheatInput.value = '';
   }
   
+  // List currently-active cheat codes in the console message line (called
+  // on settings open; applyCheat overwrites it with action feedback).
+  function refreshCheatStatusLine() {
+    const active = [];
+    if (selectedSkin === 'saucer') active.push('SAUCER');
+    if (cheatRainbow) active.push('RAINBOW');
+    if (cheatGod) active.push('GOD');
+    if (cheatMatrix) active.push('MATRIX');
+    if (active.length > 0) {
+      cheatMsg.style.color = 'var(--neon-yellow)';
+      cheatMsg.innerText = `ACTIVE CODES: ${active.join(', ')} — RE-ENTER A CODE TO DISABLE IT`;
+    } else {
+      cheatMsg.innerText = '';
+    }
+  }
+
   if (btnSubmitCheat && cheatInput) {
     btnSubmitCheat.addEventListener('click', () => {
       applyCheat();
@@ -6394,16 +6510,10 @@ function generateShareImage({ name, score, level, mode, difficulty }) {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }, 'image/png');
 
-  // Confirmation toast on the existing achievement-toast element so the
-  // player knows the download fired.
-  const toast = document.getElementById('achievement-toast');
-  if (toast) {
-    document.getElementById('ach-toast-icon').textContent = '📸';
-    document.getElementById('ach-toast-name').textContent = 'SCORE CARD DOWNLOADED';
-    toast.classList.remove('hidden');
-    if (achToastTimer) clearTimeout(achToastTimer);
-    achToastTimer = setTimeout(() => { toast.classList.add('hidden'); achToastTimer = null; }, 2500);
-  }
+  // Confirmation toast so the player knows the download fired — routed
+  // through showBonusToast so the header reads 'EXPORT COMPLETE' rather
+  // than 'ACHIEVEMENT UNLOCKED'.
+  showBonusToast('📸', 'SCORE CARD DOWNLOADED', 'EXPORT COMPLETE', 2500);
 }
 
 /* ----------------------------------------------------
@@ -6533,9 +6643,31 @@ function renderAchievementsUI() {
 // Per-toast hide timer so consecutive unlocks queue and replace cleanly
 // instead of fighting each other for screen time.
 let achToastTimer = null;
+
+// Generic transient notice on the shared toast element, with its own header
+// label so non-achievement events (PERFECT SECTOR bonus, share-card export)
+// don't masquerade as 'ACHIEVEMENT UNLOCKED'.
+function showBonusToast(icon, name, label = 'SECTOR BONUS', duration = 3000) {
+  const toast = document.getElementById('achievement-toast');
+  if (!toast) return;
+  const lbl = toast.querySelector('.ach-label');
+  if (lbl) lbl.textContent = label;
+  document.getElementById('ach-toast-icon').textContent = icon;
+  document.getElementById('ach-toast-name').textContent = name;
+  toast.classList.remove('hidden');
+  if (achToastTimer) clearTimeout(achToastTimer);
+  achToastTimer = setTimeout(() => {
+    toast.classList.add('hidden');
+    achToastTimer = null;
+  }, duration);
+}
+
 function showAchievementToast(def) {
   const toast = document.getElementById('achievement-toast');
   if (!toast) return;
+  // Restore the header in case a bonus toast rewrote it.
+  const lbl = toast.querySelector('.ach-label');
+  if (lbl) lbl.textContent = 'ACHIEVEMENT UNLOCKED';
   document.getElementById('ach-toast-icon').textContent = def.icon || '🏆';
   document.getElementById('ach-toast-name').textContent = def.name;
   toast.classList.remove('hidden');

@@ -50,7 +50,7 @@ class PlayerShip {
     // at its max-Y position.
     let maxY = CONFIG.height - this.height - 55;
     
-    const lvlData = LEVEL_DATABASE[currentLevel] || {};
+    const lvlData = activeLevelData || {};
     if (lvlData.trenchWalls) {
       // Trench Run constrains player to middle corridor (200px to 600px)
       minX = 210;

@@ -19,7 +19,7 @@ const MATRIX_RAIN_COLOURS = [
    BACKGROUND SCROLLING GRID RENDER
    ---------------------------------------------------- */
 function drawSynthwaveBackground() {
-  const lvlData = LEVEL_DATABASE[currentLevel] || {};
+  const lvlData = activeLevelData || {};
   
   // Set backdrop colors based on level style
   if (lvlData.theme === 'spice') {
@@ -306,7 +306,7 @@ function drawGame() {
   // Draw scrolling backgrounds
   drawSynthwaveBackground();
 
-  const lvlData = LEVEL_DATABASE[currentLevel] || {};
+  const lvlData = activeLevelData || {};
 
   // Draw Death Star Reactor Beam (Level 19)
   if (lvlData.dsCoreLaser && (dsLaserState === 'charging' || dsLaserState === 'firing')) {

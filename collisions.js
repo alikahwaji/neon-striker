@@ -262,7 +262,11 @@ function handleCollisions() {
         laser.y - laser.height < player.y + player.height) {
       
       enemyLasers.splice(l, 1);
-      damagePlayer(15);
+      // Heavy bolts (sniper charge shots carry damage 2) hit harder than
+      // standard fire — matches their long charge-up telegraph. Previously
+      // every enemy laser dealt a flat 15 and the sniper's damage stat was
+      // silently ignored.
+      damagePlayer(laser.damage >= 2 ? 25 : 15);
     }
   }
 
@@ -375,7 +379,7 @@ function handleCollisions() {
   }
 
   // 8. Wall Conduit Collisions (Trench Run)
-  const lvlData = LEVEL_DATABASE[currentLevel] || {};
+  const lvlData = activeLevelData || {};
   if (lvlData.trenchWalls) {
     if (player.x < 205 || player.x + player.width > 595) {
       damagePlayer(2); // Trench wall thermal friction damage
@@ -421,6 +425,10 @@ function damagePlayer(amount) {
   // to play perfectly to keep their multiplier — that's the skill expression.
   comboKills = 0;
   comboTimer = 0;
+
+  // Hull damage landed → this sector no longer qualifies for the
+  // PERFECT SECTOR clear bonus (see triggerLevelClear in main.js).
+  levelDamageTaken = true;
 
   health = Math.max(0, health - amount);
   triggerScreenShake(0.5);

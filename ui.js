@@ -115,6 +115,18 @@ async function updateLeaderboardUI() {
       }
     } catch (e) {
       console.warn('Failed to load daily scores:', e);
+      // Replace the loading shimmer with a real error state — previously a
+      // failed fetch left '🌙 LOADING TODAY'S RUNS...' blinking forever.
+      body.innerHTML = '';
+      const tr = document.createElement('tr');
+      const td = document.createElement('td');
+      td.colSpan = 3;
+      td.className = 'text-center font-mono';
+      td.style.padding = '2.5rem 0';
+      td.style.color = '#ff003c';
+      td.textContent = 'Daily board unreachable — check your connection and retry.';
+      tr.append(td);
+      body.append(tr);
     }
     return;
   }
@@ -335,6 +347,12 @@ window.addEventListener('load', () => {
   document.getElementById('btn-settings').addEventListener('click', () => {
     document.getElementById('start-menu').classList.add('hidden');
     document.getElementById('settings-menu').classList.remove('hidden');
+    // Surface any persisted-on cheats in the console status line. Cheats
+    // survive sessions via settings, so without this a player could be
+    // running (and leaderboard-tainted by) god mode from weeks ago with
+    // zero visible indication. Only names of ALREADY-active codes show,
+    // so nothing undiscovered is spoiled.
+    refreshCheatStatusLine();
   });
 
   document.getElementById('btn-settings-back').addEventListener('click', () => {
@@ -704,35 +722,52 @@ window.addEventListener('load', () => {
   const cheatInput = document.getElementById('cheat-input');
   const cheatMsg = document.getElementById('cheat-msg');
   
+  // Every code is a TOGGLE: enter it again to switch the cheat back off.
+  // Cheats persist across sessions via settings, so before this a single
+  // 'god' entry latched invincibility on FOREVER — permanently withholding
+  // the player's runs from the global leaderboard with no way back.
   function applyCheat() {
     const code = cheatInput.value.trim().toLowerCase();
     if (!code) return;
 
     let recognised = true;
+    let activated = false;
     if (code === 'saucer') {
-      selectedSkin = 'saucer';
-      paintBtns.forEach(b => b.classList.remove('active'));
-      cheatMsg.style.color = 'var(--neon-cyan)';
-      cheatMsg.innerText = 'CODENAME: UFO SAUCER ACTIVATED!';
+      if (selectedSkin === 'saucer') {
+        selectedSkin = 'default';
+        paintBtns.forEach(b => b.classList.toggle('active', b.getAttribute('data-skin') === 'default'));
+        cheatMsg.style.color = 'var(--neon-yellow)';
+        cheatMsg.innerText = 'UFO SAUCER OFF — CYBER CYAN RESTORED';
+      } else {
+        activated = true;
+        selectedSkin = 'saucer';
+        paintBtns.forEach(b => b.classList.remove('active'));
+        cheatMsg.style.color = 'var(--neon-cyan)';
+        cheatMsg.innerText = 'CODENAME: UFO SAUCER ACTIVATED!';
+      }
       GameAudio.playPowerUpSound();
     } else if (code === 'rainbow') {
-      cheatRainbow = true;
-      cheatMsg.style.color = 'var(--neon-cyan)';
-      cheatMsg.innerText = 'CODENAME: RAINBOW WEAPONS ACTIVE!';
+      cheatRainbow = !cheatRainbow;
+      activated = cheatRainbow;
+      cheatMsg.style.color = cheatRainbow ? 'var(--neon-cyan)' : 'var(--neon-yellow)';
+      cheatMsg.innerText = cheatRainbow ? 'CODENAME: RAINBOW WEAPONS ACTIVE!' : 'RAINBOW WEAPONS DISENGAGED';
       GameAudio.playPowerUpSound();
     } else if (code === 'god') {
-      cheatGod = true;
+      cheatGod = !cheatGod;
+      activated = cheatGod;
       // Belt-and-suspenders: if god is somehow enabled while a run is live,
       // taint it now. (Normally the cheat console is only reachable from the
-      // menu, where startGame handles the taint at run start.)
-      if (gameActive) runTainted = true;
-      cheatMsg.style.color = 'var(--neon-cyan)';
-      cheatMsg.innerText = 'CODENAME: NEON GOD SHIELD ONLINE!';
+      // menu, where startGame handles the taint at run start.) Toggling god
+      // OFF mid-run deliberately does NOT untaint — the run already benefited.
+      if (cheatGod && gameActive) runTainted = true;
+      cheatMsg.style.color = cheatGod ? 'var(--neon-cyan)' : 'var(--neon-yellow)';
+      cheatMsg.innerText = cheatGod ? 'CODENAME: NEON GOD SHIELD ONLINE!' : 'GOD SHIELD POWERED DOWN';
       GameAudio.playPowerUpSound();
     } else if (code === 'matrix') {
-      cheatMatrix = true;
-      cheatMsg.style.color = 'var(--neon-cyan)';
-      cheatMsg.innerText = 'CODENAME: SYSTEM CODE OVERRIDE!';
+      cheatMatrix = !cheatMatrix;
+      activated = cheatMatrix;
+      cheatMsg.style.color = cheatMatrix ? 'var(--neon-cyan)' : 'var(--neon-yellow)';
+      cheatMsg.innerText = cheatMatrix ? 'CODENAME: SYSTEM CODE OVERRIDE!' : 'SYSTEM OVERRIDE REVERTED';
       GameAudio.playPowerUpSound();
     } else {
       recognised = false;
@@ -742,11 +777,27 @@ window.addEventListener('load', () => {
     }
     if (recognised) {
       persistSettings();
-      if (window.Achievements) Achievements.notify('cheat_entered', { code });
+      if (activated && window.Achievements) Achievements.notify('cheat_entered', { code });
     }
     cheatInput.value = '';
   }
   
+  // List currently-active cheat codes in the console message line (called
+  // on settings open; applyCheat overwrites it with action feedback).
+  function refreshCheatStatusLine() {
+    const active = [];
+    if (selectedSkin === 'saucer') active.push('SAUCER');
+    if (cheatRainbow) active.push('RAINBOW');
+    if (cheatGod) active.push('GOD');
+    if (cheatMatrix) active.push('MATRIX');
+    if (active.length > 0) {
+      cheatMsg.style.color = 'var(--neon-yellow)';
+      cheatMsg.innerText = `ACTIVE CODES: ${active.join(', ')} — RE-ENTER A CODE TO DISABLE IT`;
+    } else {
+      cheatMsg.innerText = '';
+    }
+  }
+
   if (btnSubmitCheat && cheatInput) {
     btnSubmitCheat.addEventListener('click', () => {
       applyCheat();
@@ -894,16 +945,10 @@ function generateShareImage({ name, score, level, mode, difficulty }) {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }, 'image/png');
 
-  // Confirmation toast on the existing achievement-toast element so the
-  // player knows the download fired.
-  const toast = document.getElementById('achievement-toast');
-  if (toast) {
-    document.getElementById('ach-toast-icon').textContent = '📸';
-    document.getElementById('ach-toast-name').textContent = 'SCORE CARD DOWNLOADED';
-    toast.classList.remove('hidden');
-    if (achToastTimer) clearTimeout(achToastTimer);
-    achToastTimer = setTimeout(() => { toast.classList.add('hidden'); achToastTimer = null; }, 2500);
-  }
+  // Confirmation toast so the player knows the download fired — routed
+  // through showBonusToast so the header reads 'EXPORT COMPLETE' rather
+  // than 'ACHIEVEMENT UNLOCKED'.
+  showBonusToast('📸', 'SCORE CARD DOWNLOADED', 'EXPORT COMPLETE', 2500);
 }
 
 /* ----------------------------------------------------
@@ -1033,9 +1078,31 @@ function renderAchievementsUI() {
 // Per-toast hide timer so consecutive unlocks queue and replace cleanly
 // instead of fighting each other for screen time.
 let achToastTimer = null;
+
+// Generic transient notice on the shared toast element, with its own header
+// label so non-achievement events (PERFECT SECTOR bonus, share-card export)
+// don't masquerade as 'ACHIEVEMENT UNLOCKED'.
+function showBonusToast(icon, name, label = 'SECTOR BONUS', duration = 3000) {
+  const toast = document.getElementById('achievement-toast');
+  if (!toast) return;
+  const lbl = toast.querySelector('.ach-label');
+  if (lbl) lbl.textContent = label;
+  document.getElementById('ach-toast-icon').textContent = icon;
+  document.getElementById('ach-toast-name').textContent = name;
+  toast.classList.remove('hidden');
+  if (achToastTimer) clearTimeout(achToastTimer);
+  achToastTimer = setTimeout(() => {
+    toast.classList.add('hidden');
+    achToastTimer = null;
+  }, duration);
+}
+
 function showAchievementToast(def) {
   const toast = document.getElementById('achievement-toast');
   if (!toast) return;
+  // Restore the header in case a bonus toast rewrote it.
+  const lbl = toast.querySelector('.ach-label');
+  if (lbl) lbl.textContent = 'ACHIEVEMENT UNLOCKED';
   document.getElementById('ach-toast-icon').textContent = def.icon || '🏆';
   document.getElementById('ach-toast-name').textContent = def.name;
   toast.classList.remove('hidden');

@@ -35,6 +35,22 @@ let score = 0;
 let highScore = 0;
 let currentLevel = 1;
 
+// The level data the CURRENT sector is actually running with. Set once in
+// loadAndStartLevel() from whichever source applies (campaign / boss rush /
+// endless). Every per-frame consumer (wave spawning, theme rendering,
+// trench walls, black-hole gravity, bullet-time) must read THIS instead of
+// LEVEL_DATABASE[currentLevel] — the raw lookup silently leaked campaign
+// level 1-4 features into Boss Rush (whose currentLevel is 1..4) and made
+// every generated Endless-sector feature (themes, asteroid storms) dead,
+// since LEVEL_DATABASE has no entries past 20.
+let activeLevelData = {};
+
+// True once the player takes HULL damage during the current sector (shield
+// pickup absorbs and god mode don't count, matching the Untouchable
+// achievement's definition). Reset in loadAndStartLevel; read at level
+// clear to award the PERFECT SECTOR bonus.
+let levelDamageTaken = false;
+
 // All-Ages Expansion globals
 let selectedDifficulty = 'hero'; // 'cadet', 'hero', 'elite'
 let selectedSkin = 'default';    // 'default', 'toxic', 'solar', 'void', 'saucer'
@@ -233,7 +249,7 @@ const LEVEL_DATABASE = {
   },
   4: {
     title: "LEVEL 4",
-    subtitle: "SHIELD CRUSER INTRUSION",
+    subtitle: "SHIELD CRUISER INTRUSION",
     theme: "standard",
     quote: "Heavy swarmers incoming. Their outer shields absorb single laser hits. Overcharge active.",
     enemyGrid: { rows: 3, cols: 6, scouts: true, swarmers: true, kamikazes: false }
@@ -313,6 +329,7 @@ const LEVEL_DATABASE = {
     theme: "standard",
     quote: "'I'm sorry, Dave. I'm afraid I can't do that.' Indestructible Monolith block shields active. HAL core eye observing.",
     halEye: true,
+    monoliths: true,
     enemyGrid: { rows: 2, cols: 5, scouts: true, swarmers: false, kamikazes: true }
   },
   15: {
@@ -341,7 +358,7 @@ const LEVEL_DATABASE = {
     title: "LEVEL 18",
     subtitle: "COLONY SECURITY SENTRY",
     theme: "wey_sentry",
-    quote: "Weyland perimeter perimeter alert. Sentry searchlights scanning quadrants. Evade or destroy lock-on cones.",
+    quote: "Weyland perimeter alert. Sentry searchlights scanning quadrants. Evade or destroy lock-on cones.",
     enemyGrid: { rows: 2, cols: 4, scouts: true, swarmers: false, kamikazes: false, sentries: true, snipers: true }
   },
   19: {
