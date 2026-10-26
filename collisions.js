@@ -42,6 +42,7 @@ function triggerPlayerEMP() {
   if (!player) return;
   empShockwaves.push(new EMPShockwave(player.x + player.width / 2, player.y + player.height / 2));
   empCooldownTimer = 8000; // 8 seconds cooldown
+  padRumble(0.6, 0.9, 260);
 }
 
 function destroyEnemy(enemy, eIndex) {
@@ -440,6 +441,7 @@ function damagePlayer(amount) {
 
   health = Math.max(0, health - amount);
   triggerScreenShake(0.5);
+  padRumble(0.8, 0.5, 180);
   GameAudio.playExplosionSound(0.8);
   spawnExplosionParticles(player.x + player.width / 2, player.y + player.height / 2, '#ff003c', 15);
   player.invulnFrames = 60;
@@ -455,6 +457,7 @@ function applyPowerUp(type) {
   
   if (type === 'BOMB') {
     triggerScreenShake(1.0);
+    padRumble(1.0, 1.0, 400);
     GameAudio.playBombSound();
     
     for (let e = enemies.length - 1; e >= 0; e--) {
@@ -494,6 +497,7 @@ function spawnExplosionParticles(x, y, color, count = 15) {
 
 function triggerPlayerExplosion() {
   gameActive = false;
+  padRumble(1.0, 1.0, 700);
   GameAudio.playBombSound();
   spawnExplosionParticles(player.x + player.width / 2, player.y + player.height / 2, '#00f0ff', 50);
   spawnExplosionParticles(player.x + player.width / 2, player.y + player.height / 2, '#ff00aa', 30);

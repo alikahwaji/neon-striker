@@ -19,6 +19,7 @@ on:
       - 'collisions.js'
       - 'achievements.js'
       - 'stats.js'
+      - 'gamepad.js'
       - 'main.js'
       - 'ui.js'
       - 'build.js'

@@ -73,7 +73,12 @@ const HOOK = `
   Enemy, HatchingPod, PlayerShip, Asteroid, EMPShockwave, BOSS_ENEMY_TYPES, BOSS_RUSH_SEQUENCE, LEVEL_DATABASE,
   generateEndlessLevel, spawnCampaignForces, destroyEnemy, applyPowerUp, getLeaderboard,
   startGame, startBossRushRun, startDailyRun, frameMult, frameChance, updateGame, drawGame,
-  triggerScreenShake, autoPauseIfPlaying, resizeCanvasToDisplay
+  triggerScreenShake, autoPauseIfPlaying, resizeCanvasToDisplay,
+  pollGamepad, padRumble,
+  get padMoveX() { return padMoveX; }, get padMoveY() { return padMoveY; },
+  get keys() { return keys; }, get keysPressed() { return keysPressed; },
+  clearKeysPressed() { keysPressed = {}; },
+  set frameNow(v) { frameNow = v; }
 };
 `;
 
