@@ -185,6 +185,24 @@ let frameNow = 0;
 // counter exactly once.
 let nextEntityId = 0;
 
+// Per-frame movement in this game is tuned in "60 Hz frames". frameMult
+// converts a frame's dt (ms) into that unit so additive steps can be
+// written `x += vx * m` and stay refresh-rate independent (144 Hz used to
+// run ~2.4x fast). Same convention Laser / Asteroid / Particle already use.
+const FRAME_MS = 16.667;
+// Set once per rAF tick from the clamped dt; render.js scrolls the
+// background (stars, matrix rain, grid) by it, since drawing also runs on
+// menus where updateGame doesn't.
+let renderFrameMult = 1;
+function frameMult(dt) {
+  return (dt || FRAME_MS) / FRAME_MS;
+}
+// Per-frame probability p rescaled so the per-second rate is the same at
+// any refresh rate (exact for independent rolls).
+function frameChance(p, m) {
+  return 1 - Math.pow(1 - p, m);
+}
+
 // Score combo multiplier state. Each consecutive kill within COMBO_WINDOW_MS
 // of the previous bumps comboKills; the multiplier is derived from
 // comboKills (3 kills → ×2, 7 → ×3, 12 → ×4, 20 → ×5). Reset to 0 on any

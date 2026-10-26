@@ -16,10 +16,14 @@ function handleWaveSpawning(dt) {
     }
   }
 
+  // Spawn chances below are per 60 Hz frame; frameChance rescales them so
+  // a 144 Hz display doesn't roll ~2.4x as many asteroids / eggs / turrets.
+  const m = frameMult(dt);
+
   // Random Asteroid drops check (Level 2, 8, 9, endless sectors)
   const lvlData = activeLevelData || {};
   if (lvlData.asteroidChance && gameActive && !gamePaused) {
-    if (Math.random() < lvlData.asteroidChance) {
+    if (Math.random() < frameChance(lvlData.asteroidChance, m)) {
       const rx = Math.random() * (CONFIG.width - 80) + 40;
       asteroids.push(new Asteroid(rx, -40, 'large'));
     }
@@ -27,7 +31,7 @@ function handleWaveSpawning(dt) {
 
   // Level 12 Creepy Egg pulser drops chance
   if (lvlData.hatchingPods && gameActive && !gamePaused && enemies.length < 5) {
-    if (Math.random() < 0.005) {
+    if (Math.random() < frameChance(0.005, m)) {
       const rx = Math.random() * (CONFIG.width - 100) + 50;
       enemies.push(new HatchingPod(rx, -40));
     }
@@ -35,7 +39,7 @@ function handleWaveSpawning(dt) {
 
   // Level 15 Spice Cloud spawners
   if (lvlData.spiceClouds && gameActive && !gamePaused) {
-    if (Math.random() < 0.015) {
+    if (Math.random() < frameChance(0.015, m)) {
       const rx = Math.random() * (CONFIG.width - 60) + 30;
       powerUps.push(new SpiceCloud(rx, -40));
     }
@@ -43,7 +47,7 @@ function handleWaveSpawning(dt) {
 
   // Trench Wall Turrets Spawning (Level 11)
   if (lvlData.trenchWalls && gameActive && !gamePaused) {
-    if (Math.random() < 0.008) {
+    if (Math.random() < frameChance(0.008, m)) {
       const side = Math.random() > 0.5 ? 'left' : 'right';
       const rx = side === 'left' ? 176 : 600;
       wallTurrets.push(new WallTurret(rx, -40, side));
@@ -61,7 +65,7 @@ function handleWaveSpawning(dt) {
     for (let i = 0; i < asteroids.length; i++) {
       if (asteroids[i] instanceof Monolith) monolithCount++;
     }
-    if (monolithCount < 2 && Math.random() < 0.006) {
+    if (monolithCount < 2 && Math.random() < frameChance(0.006, m)) {
       const rx = Math.random() * (CONFIG.width - 210) + 80;
       asteroids.push(new Monolith(rx, -120));
     }
@@ -437,7 +441,7 @@ function updateGame(dt) {
 
   // trauma decay
   if (traumaLevel > 0) {
-    traumaLevel -= 0.04;
+    traumaLevel -= 0.04 * frameMult(dt); // 0.04 per 60 Hz frame
     if (traumaLevel < 0) traumaLevel = 0;
   }
 
@@ -515,7 +519,7 @@ function updateGame(dt) {
   // Update Homing Missiles
   for (let i = homingMissiles.length - 1; i >= 0; i--) {
     const missile = homingMissiles[i];
-    missile.update();
+    missile.update(dt);
     if (missile.isOutOfBounds()) homingMissiles.splice(i, 1);
   }
 
@@ -551,7 +555,7 @@ function updateGame(dt) {
   // Update Nanotech scrap drops
   for (let i = scrapItems.length - 1; i >= 0; i--) {
     const scrap = scrapItems[i];
-    scrap.update();
+    scrap.update(dt);
     if (scrap.y > CONFIG.height + 40) {
       scrapItems.splice(i, 1);
     }
@@ -735,14 +739,14 @@ function updateGame(dt) {
   }
   for (let i = floatingTexts.length - 1; i >= 0; i--) {
     const txt = floatingTexts[i];
-    txt.update();
+    txt.update(dt);
     if (txt.alpha <= 0) floatingTexts.splice(i, 1);
   }
 
   // Update Power-ups
   for (let i = powerUps.length - 1; i >= 0; i--) {
     const pup = powerUps[i];
-    pup.update();
+    pup.update(dt);
     if (pup.y > CONFIG.height + 40) powerUps.splice(i, 1);
   }
 
@@ -790,6 +794,7 @@ function gameTick(timestamp) {
   // (shootTimer, chargeTimer, dsLaserTimer, activePowerUps[*]) all at once.
   // 50ms covers ~3 dropped frames at 60Hz, which is more than enough headroom.
   const dt = Math.min(rawDt, 50);
+  renderFrameMult = frameMult(dt);
 
   if (gameActive && !gamePaused) {
     updateGame(dt);

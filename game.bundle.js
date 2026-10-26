@@ -898,6 +898,24 @@ let frameNow = 0;
 // counter exactly once.
 let nextEntityId = 0;
 
+// Per-frame movement in this game is tuned in "60 Hz frames". frameMult
+// converts a frame's dt (ms) into that unit so additive steps can be
+// written `x += vx * m` and stay refresh-rate independent (144 Hz used to
+// run ~2.4x fast). Same convention Laser / Asteroid / Particle already use.
+const FRAME_MS = 16.667;
+// Set once per rAF tick from the clamped dt; render.js scrolls the
+// background (stars, matrix rain, grid) by it, since drawing also runs on
+// menus where updateGame doesn't.
+let renderFrameMult = 1;
+function frameMult(dt) {
+  return (dt || FRAME_MS) / FRAME_MS;
+}
+// Per-frame probability p rescaled so the per-second rate is the same at
+// any refresh rate (exact for independent rolls).
+function frameChance(p, m) {
+  return 1 - Math.pow(1 - p, m);
+}
+
 // Score combo multiplier state. Each consecutive kill within COMBO_WINDOW_MS
 // of the previous bumps comboKills; the multiplier is derived from
 // comboKills (3 kills → ×2, 7 → ×3, 12 → ×4, 20 → ×5). Reset to 0 on any
@@ -1138,25 +1156,29 @@ class PlayerShip {
   }
 
   update(dt) {
+    const m = frameMult(dt);
     // Process input keyboard movements
+    const accel = CONFIG.playerSpeed * 0.15 * m;
     if (keys['ArrowLeft'] || keys['KeyA']) {
-      this.vx -= CONFIG.playerSpeed * 0.15;
+      this.vx -= accel;
     }
     if (keys['ArrowRight'] || keys['KeyD']) {
-      this.vx += CONFIG.playerSpeed * 0.15;
+      this.vx += accel;
     }
     if (keys['ArrowUp'] || keys['KeyW']) {
-      this.vy -= CONFIG.playerSpeed * 0.15;
+      this.vy -= accel;
     }
     if (keys['ArrowDown'] || keys['KeyS']) {
-      this.vy += CONFIG.playerSpeed * 0.15;
+      this.vy += accel;
     }
 
-    // Apply smooth inertia friction
-    this.vx *= CONFIG.playerFriction;
-    this.x += this.vx;
-    this.vy *= CONFIG.playerFriction;
-    this.y += this.vy;
+    // Apply smooth inertia friction (exponentiated so the decay per second
+    // is the same at any refresh rate).
+    const friction = Math.pow(CONFIG.playerFriction, m);
+    this.vx *= friction;
+    this.x += this.vx * m;
+    this.vy *= friction;
+    this.y += this.vy * m;
 
     // Apply level specific physical constraint borders
     let minX = 15;
@@ -1201,7 +1223,7 @@ class PlayerShip {
       else if (selectedDifficulty === 'elite') pullForce = 0.22;
       
       const pullDir = player.x + player.width / 2 < 400 ? 1 : -1;
-      this.vx += pullDir * pullForce;
+      this.vx += pullDir * pullForce * m;
     }
 
     // Shooting cannon fires
@@ -1219,8 +1241,9 @@ class PlayerShip {
       }
     }
 
+    // Counted in 60 Hz frames, so 60 = 1 s at any refresh rate.
     if (this.invulnFrames > 0) {
-      this.invulnFrames--;
+      this.invulnFrames -= m;
     }
   }
 
@@ -1514,7 +1537,8 @@ class HomingMissile {
     this.trailTimer = 0;
   }
 
-  update() {
+  update(dt) {
+    const m = frameMult(dt);
     // Seek Target Vector calculation
     if (this.target && this.target.health > 0 && enemies.includes(this.target)) {
       const tx = this.target.x + this.target.width / 2;
@@ -1528,9 +1552,11 @@ class HomingMissile {
         const targetVx = (dx / dist) * this.speed;
         const targetVy = (dy / dist) * this.speed;
         
-        // Steering factor (curves the rocket trajectory smoothly)
-        this.vx += (targetVx - this.vx) * 0.15;
-        this.vy += (targetVy - this.vy) * 0.15;
+        // Steering factor (curves the rocket trajectory smoothly) — 0.15
+        // per 60 Hz frame, exponentiated so turn rate is refresh-independent.
+        const steer = 1 - Math.pow(0.85, m);
+        this.vx += (targetVx - this.vx) * steer;
+        this.vy += (targetVy - this.vy) * steer;
       }
     } else {
       // Find new target if current is destroyed. Squared distance only —
@@ -1552,12 +1578,13 @@ class HomingMissile {
       if (closest) this.target = closest;
     }
 
-    this.x += this.vx;
-    this.y += this.vy;
+    this.x += this.vx * m;
+    this.y += this.vy * m;
 
-    // Rocket particles trail
-    this.trailTimer++;
-    if (this.trailTimer % 2 === 0) {
+    // Rocket particles trail — one puff per two 60 Hz frames.
+    this.trailTimer += m;
+    if (this.trailTimer >= 2) {
+      this.trailTimer -= 2;
       particles.push(new Particle(this.x, this.y, '#ffea00'));
     }
   }
@@ -1925,38 +1952,40 @@ class Enemy {
       return;
     }
 
-    this.phase += 0.035;
+    // Movement below is tuned per 60 Hz frame; m rescales it to real time.
+    const m = frameMult(dt);
+    this.phase += 0.035 * m;
 
     // Movement Behavior AI based on type
     if (this.type === 'scout') {
-      this.y += this.speed * 0.8;
-      this.x += Math.sin(this.phase) * 1.5;
+      this.y += this.speed * 0.8 * m;
+      this.x += Math.sin(this.phase) * 1.5 * m;
     } 
     else if (this.type === 'swarmer') {
-      this.y += this.speed * 0.55;
-      this.x += Math.sin(this.phase * 0.5) * 0.6;
+      this.y += this.speed * 0.55 * m;
+      this.x += Math.sin(this.phase * 0.5) * 0.6 * m;
     } 
     else if (this.type === 'kamikaze') {
-      this.y += this.speed;
+      this.y += this.speed * m;
       if (player && this.y < player.y - 120) {
         const targetDx = player.x + player.width / 2 - this.x;
-        this.x += Math.sign(targetDx) * 1.4;
+        this.x += Math.sign(targetDx) * 1.4 * m;
       }
     } 
     else if (this.type === 'phase') {
       // Slowly drift down, occasionally fading out of visibility
-      this.y += this.speed * 0.7;
-      this.x += Math.sin(this.phase * 0.8) * 1.8;
+      this.y += this.speed * 0.7 * m;
+      this.x += Math.sin(this.phase * 0.8) * 1.8 * m;
       this.alpha = 0.2 + Math.abs(Math.sin(this.phase * 2)) * 0.8;
     } 
     else if (this.type === 'heatSeeker') {
       // Slowly swoops, homing coordinates
-      this.y += this.speed * 0.6;
-      this.x += Math.sin(this.phase) * 1.2;
+      this.y += this.speed * 0.6 * m;
+      this.x += Math.sin(this.phase) * 1.2 * m;
     } 
     else if (this.type === 'boss' || this.type === 'boss2') {
       // Horizontal hover loops
-      this.x += this.speed * this.bossDirection;
+      this.x += this.speed * this.bossDirection * m;
       if (this.x < 40) {
         this.x = 40;
         this.bossDirection = 1;
@@ -1969,7 +1998,7 @@ class Enemy {
     } 
     else if (this.type === 'sandworm') {
       // Serpentine wavy flying maneuvers across canvas!
-      this.serpentinePhase += 0.02;
+      this.serpentinePhase += 0.02 * m;
       this.x = CONFIG.width / 2 - this.width / 2 + Math.sin(this.serpentinePhase * 2) * (CONFIG.width / 2 - 80);
       this.y = 120 + Math.cos(this.serpentinePhase) * 60;
       
@@ -1977,15 +2006,15 @@ class Enemy {
       this.shieldActive = Math.sin(this.serpentinePhase * 4) > 0.4;
     } 
     else if (this.type === 'shieldBlocker') {
-      this.y += this.speed * 0.7;
+      this.y += this.speed * 0.7 * m;
     } 
     else if (this.type === 'sniper') {
       if (this.y < 120) {
-        this.y += this.speed * 1.2;
+        this.y += this.speed * 1.2 * m;
       }
       if (player) {
         const targetDx = player.x + player.width / 2 - (this.x + this.width / 2);
-        this.x += Math.sign(targetDx) * 0.9;
+        this.x += Math.sign(targetDx) * 0.9 * m;
       }
       let mult = bulletTimeActive ? 0.4 : 1.0;
       this.chargeTimer += dt * mult;
@@ -1996,8 +2025,8 @@ class Enemy {
     } 
     else if (this.type === 'lightCycle') {
       let mult = bulletTimeActive ? 0.4 : 1.0;
-      this.y += this.speed * 0.5 * mult;
-      this.x += this.speed * this.directionX * 1.5 * mult;
+      this.y += this.speed * 0.5 * mult * m;
+      this.x += this.speed * this.directionX * 1.5 * mult * m;
       if (this.x < 15) {
         this.x = 15;
         this.directionX = 1;
@@ -2009,7 +2038,7 @@ class Enemy {
     } 
     else if (this.type === 'sentry') {
       let mult = bulletTimeActive ? 0.4 : 1.0;
-      const sweepSpeed = 0.008 * mult;
+      const sweepSpeed = 0.008 * mult * m;
       this.angle += sweepSpeed * this.sweepDirection;
       if (this.angle > (Math.PI * 3) / 4) {
         this.angle = (Math.PI * 3) / 4;
@@ -2022,7 +2051,7 @@ class Enemy {
     } 
     else if (this.type === 'unicron') {
       let mult = bulletTimeActive ? 0.4 : 1.0;
-      this.x += this.speed * this.bossDirection * mult;
+      this.x += this.speed * this.bossDirection * mult * m;
       if (this.x < 40) {
         this.x = 40;
         this.bossDirection = 1;
@@ -2048,7 +2077,7 @@ class Enemy {
         const dy = my - py;
         const dist = Math.sqrt(dx * dx + dy * dy);
         if (dist > 20) {
-          const pullStrength = 0.08 * mult;
+          const pullStrength = 0.08 * mult * m;
           player.vx += (dx / dist) * pullStrength;
           if (player.y > 220) {
             player.y += (dy / dist) * pullStrength * 1.5;
@@ -2540,10 +2569,11 @@ class HatchingPod {
     this.id = ++nextEntityId;
   }
 
-  update() {
-    this.x += this.vx;
-    this.y += this.vy;
-    this.phase += 0.05;
+  update(dt) {
+    const m = frameMult(dt);
+    this.x += this.vx * m;
+    this.y += this.vy * m;
+    this.phase += 0.05 * m;
   }
 
   draw() {
@@ -2595,7 +2625,8 @@ class ScrapCredit {
     this.phase = Math.random() * Math.PI;
   }
 
-  update() {
+  update(dt) {
+    const m = frameMult(dt);
     // Magnetism pull to Player ship
     if (player) {
       const px = player.x + player.width / 2;
@@ -2610,14 +2641,14 @@ class ScrapCredit {
         this.vy += (dy / dist) * magnetSpeed - this.vy;
       } else {
         // Slow float
-        this.vx *= 0.95;
+        this.vx *= Math.pow(0.95, m);
         this.vy = 1.5;
       }
     }
 
-    this.x += this.vx;
-    this.y += this.vy;
-    this.phase += 0.08;
+    this.x += this.vx * m;
+    this.y += this.vy * m;
+    this.phase += 0.08 * m;
   }
 
   draw() {
@@ -2650,10 +2681,11 @@ class SpiceCloud {
     this.phase = Math.random() * Math.PI;
   }
 
-  update() {
-    this.x += this.vx;
-    this.y += this.vy;
-    this.phase += 0.03;
+  update(dt) {
+    const m = frameMult(dt);
+    this.x += this.vx * m;
+    this.y += this.vy * m;
+    this.phase += 0.03 * m;
   }
 
   draw() {
@@ -2681,8 +2713,8 @@ class Monolith {
     this.color = '#000'; // Completely Pitch Black!
   }
 
-  update() {
-    this.y += this.vy;
+  update(dt) {
+    this.y += this.vy * frameMult(dt);
   }
 
   draw() {
@@ -2717,7 +2749,7 @@ class WallTurret {
   }
 
   update(dt) {
-    this.y += 1.8; // Grid scroll speed match
+    this.y += 1.8 * frameMult(dt); // Grid scroll speed match
     
     if (gameActive && !gamePaused) {
       this.shootTimer -= dt;
@@ -2797,9 +2829,10 @@ class PowerUp {
     else if (type === 'BOMB') { this.color = '#8b00ff'; this.label = '💣'; }
   }
 
-  update() {
-    this.y += this.speed;
-    this.phase += 0.05;
+  update(dt) {
+    const m = frameMult(dt);
+    this.y += this.speed * m;
+    this.phase += 0.05 * m;
   }
 
   draw() {
@@ -2909,6 +2942,7 @@ class Debris {
   update(dt) {
     let mult = 1.0;
     if (bulletTimeActive) mult = 0.4;
+    mult *= frameMult(dt);
     
     this.x += this.vx * mult;
     this.y += this.vy * mult;
@@ -2968,7 +3002,7 @@ class WingmanDrone {
     
     let rotationSpeed = 0.04;
     if (bulletTimeActive) rotationSpeed *= 0.4;
-    this.angle += rotationSpeed;
+    this.angle += rotationSpeed * frameMult(dt);
     
     const px = player.x + player.width / 2;
     const py = player.y + player.height / 2;
@@ -3055,7 +3089,7 @@ class EMPShockwave {
     let mult = 1.0;
     if (bulletTimeActive) mult = 0.4;
     
-    this.radius += this.speed * mult;
+    this.radius += this.speed * mult * frameMult(dt);
     
     // Clear active hostile energy bolts inside expanding ring
     for (let i = enemyLasers.length - 1; i >= 0; i--) {
@@ -3130,9 +3164,10 @@ class FloatingText {
     this.fontSize = 13;
   }
 
-  update() {
-    this.y += this.vy;
-    this.alpha -= this.decay;
+  update(dt) {
+    const m = frameMult(dt);
+    this.y += this.vy * m;
+    this.alpha -= this.decay * m;
   }
 
   draw() {
@@ -3196,7 +3231,7 @@ function drawSynthwaveBackground() {
     let currentSpeed = star.speed;
     if (isWarping) currentSpeed *= 15;
     
-    star.y += currentSpeed;
+    star.y += currentSpeed * renderFrameMult;
     if (star.y > CONFIG.height) {
       star.y = 0;
       star.x = Math.random() * CONFIG.width;
@@ -3234,7 +3269,7 @@ function drawSynthwaveBackground() {
     ctx.font = '14px monospace';
     matrixStreams.forEach(stream => {
       let speedMult = bulletTimeActive ? 0.4 : 1.0;
-      stream.y += stream.speed * speedMult;
+      stream.y += stream.speed * speedMult * renderFrameMult;
       if (stream.y - stream.length * 16 > CONFIG.height) {
         stream.y = Math.random() * -200;
         stream.speed = Math.random() * 3 + 2;
@@ -3361,7 +3396,7 @@ function drawSynthwaveBackground() {
   }
 
   // Grid offsets
-  gridOffset += 1.8;
+  gridOffset += 1.8 * renderFrameMult;
   if (gridOffset >= 60) gridOffset = 0;
 
   ctx.strokeStyle = gridLineCol1;
@@ -4529,10 +4564,14 @@ function handleWaveSpawning(dt) {
     }
   }
 
+  // Spawn chances below are per 60 Hz frame; frameChance rescales them so
+  // a 144 Hz display doesn't roll ~2.4x as many asteroids / eggs / turrets.
+  const m = frameMult(dt);
+
   // Random Asteroid drops check (Level 2, 8, 9, endless sectors)
   const lvlData = activeLevelData || {};
   if (lvlData.asteroidChance && gameActive && !gamePaused) {
-    if (Math.random() < lvlData.asteroidChance) {
+    if (Math.random() < frameChance(lvlData.asteroidChance, m)) {
       const rx = Math.random() * (CONFIG.width - 80) + 40;
       asteroids.push(new Asteroid(rx, -40, 'large'));
     }
@@ -4540,7 +4579,7 @@ function handleWaveSpawning(dt) {
 
   // Level 12 Creepy Egg pulser drops chance
   if (lvlData.hatchingPods && gameActive && !gamePaused && enemies.length < 5) {
-    if (Math.random() < 0.005) {
+    if (Math.random() < frameChance(0.005, m)) {
       const rx = Math.random() * (CONFIG.width - 100) + 50;
       enemies.push(new HatchingPod(rx, -40));
     }
@@ -4548,7 +4587,7 @@ function handleWaveSpawning(dt) {
 
   // Level 15 Spice Cloud spawners
   if (lvlData.spiceClouds && gameActive && !gamePaused) {
-    if (Math.random() < 0.015) {
+    if (Math.random() < frameChance(0.015, m)) {
       const rx = Math.random() * (CONFIG.width - 60) + 30;
       powerUps.push(new SpiceCloud(rx, -40));
     }
@@ -4556,7 +4595,7 @@ function handleWaveSpawning(dt) {
 
   // Trench Wall Turrets Spawning (Level 11)
   if (lvlData.trenchWalls && gameActive && !gamePaused) {
-    if (Math.random() < 0.008) {
+    if (Math.random() < frameChance(0.008, m)) {
       const side = Math.random() > 0.5 ? 'left' : 'right';
       const rx = side === 'left' ? 176 : 600;
       wallTurrets.push(new WallTurret(rx, -40, side));
@@ -4574,7 +4613,7 @@ function handleWaveSpawning(dt) {
     for (let i = 0; i < asteroids.length; i++) {
       if (asteroids[i] instanceof Monolith) monolithCount++;
     }
-    if (monolithCount < 2 && Math.random() < 0.006) {
+    if (monolithCount < 2 && Math.random() < frameChance(0.006, m)) {
       const rx = Math.random() * (CONFIG.width - 210) + 80;
       asteroids.push(new Monolith(rx, -120));
     }
@@ -4950,7 +4989,7 @@ function updateGame(dt) {
 
   // trauma decay
   if (traumaLevel > 0) {
-    traumaLevel -= 0.04;
+    traumaLevel -= 0.04 * frameMult(dt); // 0.04 per 60 Hz frame
     if (traumaLevel < 0) traumaLevel = 0;
   }
 
@@ -5028,7 +5067,7 @@ function updateGame(dt) {
   // Update Homing Missiles
   for (let i = homingMissiles.length - 1; i >= 0; i--) {
     const missile = homingMissiles[i];
-    missile.update();
+    missile.update(dt);
     if (missile.isOutOfBounds()) homingMissiles.splice(i, 1);
   }
 
@@ -5064,7 +5103,7 @@ function updateGame(dt) {
   // Update Nanotech scrap drops
   for (let i = scrapItems.length - 1; i >= 0; i--) {
     const scrap = scrapItems[i];
-    scrap.update();
+    scrap.update(dt);
     if (scrap.y > CONFIG.height + 40) {
       scrapItems.splice(i, 1);
     }
@@ -5248,14 +5287,14 @@ function updateGame(dt) {
   }
   for (let i = floatingTexts.length - 1; i >= 0; i--) {
     const txt = floatingTexts[i];
-    txt.update();
+    txt.update(dt);
     if (txt.alpha <= 0) floatingTexts.splice(i, 1);
   }
 
   // Update Power-ups
   for (let i = powerUps.length - 1; i >= 0; i--) {
     const pup = powerUps[i];
-    pup.update();
+    pup.update(dt);
     if (pup.y > CONFIG.height + 40) powerUps.splice(i, 1);
   }
 
@@ -5303,6 +5342,7 @@ function gameTick(timestamp) {
   // (shootTimer, chargeTimer, dsLaserTimer, activePowerUps[*]) all at once.
   // 50ms covers ~3 dropped frames at 60Hz, which is more than enough headroom.
   const dt = Math.min(rawDt, 50);
+  renderFrameMult = frameMult(dt);
 
   if (gameActive && !gamePaused) {
     updateGame(dt);
