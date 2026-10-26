@@ -729,6 +729,7 @@ const CONFIG = {
   laserCooldownBase: 250,
   laserCooldown: 250, // ms
   shakeEnabled: true,
+  reducedMotion: false, // Settings toggle; defaults to the OS preference (ui.js)
   particleDensity: 25
 };
 
@@ -5079,7 +5080,7 @@ function spawnCampaignForces(lvlData) {
 }
 
 function triggerScreenShake(intensity) {
-  if (!CONFIG.shakeEnabled) return;
+  if (!CONFIG.shakeEnabled || CONFIG.reducedMotion) return;
   traumaLevel = Math.min(traumaLevel + intensity, 1.0);
 }
 
@@ -5549,6 +5550,13 @@ function continueGame() {
   }
 
   loadAndStartLevel();
+}
+
+// Pause when the player tabs away or the window loses focus mid-fight, so
+// they don't come back to a dead ship. Never auto-resumes: P / RESUME is
+// an explicit choice, so the game can't restart behind the player's back.
+function autoPauseIfPlaying() {
+  if (gameActive && !gamePaused && !inShop && !inIntro) togglePause();
 }
 
 function togglePause() {
@@ -6507,6 +6515,27 @@ window.addEventListener('load', () => {
     }
   }
 
+  const toggleMotion = document.getElementById('toggle-reduced-motion');
+  if (toggleMotion) {
+    toggleMotion.addEventListener('change', e => {
+      reducedMotionChosen = true; // explicit choice now overrides the OS setting
+      applyReducedMotion(e.target.checked);
+      persistSettings();
+    });
+  }
+  // Follow the OS "reduce motion" preference until the player picks one.
+  if (window.matchMedia) {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    if (!reducedMotionChosen) applyReducedMotion(mq.matches);
+    const onOsChange = () => { if (!reducedMotionChosen) applyReducedMotion(mq.matches); };
+    if (mq.addEventListener) mq.addEventListener('change', onOsChange);
+  }
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) autoPauseIfPlaying();
+  });
+  window.addEventListener('blur', autoPauseIfPlaying);
+
   // --- All-Ages Expansion UI Listeners ---
 
   // 1. Difficulty Selector setup
@@ -6951,6 +6980,18 @@ function showAchievementToast(def) {
 // Versioned key so future schema bumps don't crash on stale payloads.
 const SETTINGS_KEY = 'neon_striker_settings_v1';
 
+// True once the player has set Reduced Motion themselves (this session or a
+// saved one); until then the setting tracks prefers-reduced-motion.
+let reducedMotionChosen = false;
+
+function applyReducedMotion(on) {
+  CONFIG.reducedMotion = !!on;
+  if (on) traumaLevel = 0; // stop any shake already in progress
+  document.documentElement.classList.toggle('reduce-motion', !!on);
+  const cb = document.getElementById('toggle-reduced-motion');
+  if (cb) cb.checked = !!on;
+}
+
 function loadPersistedSettings() {
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
@@ -6971,6 +7012,9 @@ function persistSettings() {
       shake: document.getElementById('toggle-shake').checked,
       scanlines: document.getElementById('toggle-scanlines').checked,
       bezel: (document.getElementById('toggle-bezel') || {}).checked,
+      // Only saved once the player has touched the toggle, so untouched
+      // installs keep following the OS preference.
+      reducedMotion: reducedMotionChosen ? CONFIG.reducedMotion : undefined,
       difficulty: selectedDifficulty,
       skin: selectedSkin,
       cheats: { rainbow: cheatRainbow, god: cheatGod, matrix: cheatMatrix }
@@ -7012,6 +7056,11 @@ function applyPersistedSettings(s) {
       cb.checked = s.bezel;
       document.getElementById('game-container').classList.toggle('crt-bezel-active', s.bezel);
     }
+  }
+
+  if (typeof s.reducedMotion === 'boolean') {
+    reducedMotionChosen = true;
+    applyReducedMotion(s.reducedMotion);
   }
 
   // Difficulty — restore active class on the matching button.

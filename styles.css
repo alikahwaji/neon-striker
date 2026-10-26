@@ -1810,3 +1810,28 @@ input[type=range]::-webkit-slider-thumb:hover {
   box-shadow: 0 0 16px var(--skin-color);
   text-shadow: none;
 }
+
+/* ----------------------------------------------------
+   REDUCED MOTION
+   ----------------------------------------------------
+   Applied as html.reduce-motion by the Settings toggle, which defaults to
+   the OS "reduce motion" preference. Stops the ambient loops (CRT flicker,
+   scanline roll, neon rain, blinking / pulsing text) and the hue/contrast
+   hit flash. The red bottom-edge base-hit pulse is kept — it's the only
+   cue for why HP just dropped. Canvas camera shake is disabled in JS
+   (triggerScreenShake). */
+html.reduce-motion *,
+html.reduce-motion *::before,
+html.reduce-motion *::after {
+  animation: none !important;
+  transition-duration: 0.01ms !important;
+}
+
+html.reduce-motion .neon-drop {
+  /* With the fall animation stopped the drops would freeze mid-column. */
+  display: none;
+}
+
+html.reduce-motion .game-container.base-hit-flash {
+  animation: base-hit-pulse 0.38s ease-out !important;
+}

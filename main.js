@@ -422,7 +422,7 @@ function spawnCampaignForces(lvlData) {
 }
 
 function triggerScreenShake(intensity) {
-  if (!CONFIG.shakeEnabled) return;
+  if (!CONFIG.shakeEnabled || CONFIG.reducedMotion) return;
   traumaLevel = Math.min(traumaLevel + intensity, 1.0);
 }
 
@@ -892,6 +892,13 @@ function continueGame() {
   }
 
   loadAndStartLevel();
+}
+
+// Pause when the player tabs away or the window loses focus mid-fight, so
+// they don't come back to a dead ship. Never auto-resumes: P / RESUME is
+// an explicit choice, so the game can't restart behind the player's back.
+function autoPauseIfPlaying() {
+  if (gameActive && !gamePaused && !inShop && !inIntro) togglePause();
 }
 
 function togglePause() {
