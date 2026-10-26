@@ -70,9 +70,17 @@ const HOOK = `
   setBossRush(v) { bossRushMode = v; },
   setCtx(v) { ctx = v; }, setCanvas(v) { canvas = v; },
   rand() { return Math.random(); },
+  // Direct eval inside the bundle's IIFE: reads / rebinds private game
+  // state (e.g. wrap damagePlayer to attribute damage in diagnostics).
+  evalInGame(code) { return eval(code); },
   Enemy, HatchingPod, PlayerShip, Asteroid, EMPShockwave, BOSS_ENEMY_TYPES, BOSS_RUSH_SEQUENCE, LEVEL_DATABASE,
   generateEndlessLevel, spawnCampaignForces, destroyEnemy, applyPowerUp, getLeaderboard,
   bestPerPilot, saveHighScore,
+  splitAsteroid, laserHitsShip, handleCollisions, Laser,
+  get asteroids() { return asteroids; }, set asteroids(v) { asteroids = v; },
+  get enemyLasers() { return enemyLasers; }, set enemyLasers(v) { enemyLasers = v; },
+  get scrapCount() { return scrapItems.length; },
+  setHealth(v) { health = v; },
   startGame, startBossRushRun, startDailyRun, frameMult, frameChance, updateGame, drawGame,
   triggerScreenShake, autoPauseIfPlaying, resizeCanvasToDisplay,
   pollGamepad, padRumble,

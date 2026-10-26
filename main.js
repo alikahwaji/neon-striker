@@ -20,9 +20,13 @@ function handleWaveSpawning(dt) {
   // a 144 Hz display doesn't roll ~2.4x as many asteroids / eggs / turrets.
   const m = frameMult(dt);
 
-  // Random Asteroid drops check (Level 2, 8, 9, endless sectors)
+  // Random Asteroid drops check (Level 2, 8, 9, endless sectors).
+  // Gated on enemies remaining, like the monoliths below: the level only
+  // clears with zero asteroids on screen, and an endless storm meant that
+  // moment almost never came — after the last kill, Level 2/8/9 dragged on
+  // for minutes while escaping rocks drained the shield (median ~1,100+ HP).
   const lvlData = activeLevelData || {};
-  if (lvlData.asteroidChance && gameActive && !gamePaused) {
+  if (lvlData.asteroidChance && gameActive && !gamePaused && enemies.length > 0) {
     if (Math.random() < frameChance(lvlData.asteroidChance, m)) {
       const rx = Math.random() * (CONFIG.width - 80) + 40;
       asteroids.push(new Asteroid(rx, -40, 'large'));
@@ -533,6 +537,11 @@ function updateGame(dt) {
       // Monolith slabs are indestructible scenery — letting one drift past
       // is the ONLY way to deal with it, so exiting must never cost HP.
       if (ast instanceof Monolith) continue;
+      // Pieces of a rock the player already shot (splitAsteroid) leave
+      // freely — only untouched asteroids slipping past cost shield. And
+      // once every enemy is destroyed the sector is won: the last rocks
+      // drifting off while the level wraps up don't cost shield either.
+      if (ast.isFragment || enemies.length === 0) continue;
       // Damaging structural base — was previously SILENT (no on-screen cue
       // when an asteroid slipped past), which made Level 2's high-rate
       // asteroid storm feel like random unprovoked HP loss. Now fires a
