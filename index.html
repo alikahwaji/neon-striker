@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <!-- Load retro modern and high-tech typography -->
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Press+Start+2P&family=Share+Tech+Mono&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=16">
+  <link rel="stylesheet" href="styles.css?v=17">
 </head>
 <body>
 
@@ -421,7 +421,11 @@
       <!-- Pause Game Overlay -->
       <div id="pause-screen" class="overlay-panel text-center hidden pause-bg">
         <h2 class="neon-magenta pulsing-text select-none font-arcade">SIMULATION PAUSED</h2>
-        <p class="blink font-mono">PRESS 'P' OR CLICK BELOW TO RESUME PILOTING</p>
+        <p class="blink font-mono input-hint">
+          <span class="hint-kbd">PRESS 'P' OR CLICK BELOW TO RESUME PILOTING</span>
+          <span class="hint-touch">TAP RESUME BELOW TO KEEP PILOTING</span>
+          <span class="hint-pad">PRESS START OR A TO RESUME PILOTING</span>
+        </p>
         <div style="margin-top: 2rem; display: flex; gap: 1rem; justify-content: center; width: 100%;">
           <button id="btn-pause-resume" class="btn btn-primary select-none" style="min-width: 200px; margin: 0;">RESUME SIMULATION</button>
           <button id="btn-pause-abort" class="btn btn-secondary select-none" style="min-width: 200px; margin: 0;">ABORT MISSION</button>

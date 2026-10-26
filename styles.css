@@ -2132,3 +2132,10 @@ html.touch-portrait .rotate-hint {
   font-size: 0.9rem;
   cursor: pointer;
 }
+
+/* Input-specific wording (e.g. the pause screen). Controller wins when one
+   is connected, then touch, else keyboard / mouse. */
+.input-hint > span { display: none; }
+html:not(.touch-device):not(.pad-connected) .input-hint .hint-kbd,
+html.touch-device:not(.pad-connected) .input-hint .hint-touch,
+html.pad-connected .input-hint .hint-pad { display: inline; }
