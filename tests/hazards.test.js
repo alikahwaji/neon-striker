@@ -126,3 +126,51 @@ test('collision pass: a laser grazing past the nose does not cost shield', () =>
   assert.equal(shot(296, 418), 0, 'just outside the hull side');
   assert.equal(shot(322, 418), 15, 'a real hit still lands');
 });
+
+test('sentries descend into view so Level 18 can be cleared', () => {
+  const { T } = play(18);
+  const sentries = () => Array.from(T.enemies).filter(e => e.type === 'sentry');
+  assert.ok(sentries().length > 0);
+  assert.ok(sentries().every(s => s.y < 0), 'sentries should spawn above the screen');
+  T.setInShop(true);
+  for (let f = 0; f < 60 * 5; f++) T.updateGame(16.667);
+  for (const s of sentries()) {
+    assert.ok(s.y >= 0 && s.y + s.height <= 600, `sentry stuck off-screen at y=${s.y}`);
+  }
+});
+
+test('BOMB kills count as kills for stats and achievements (without combo)', () => {
+  const { T, ctx } = play(1);
+  const before = ctx.Stats.getSnapshot().totalKills;
+  const combo = T.evalInGame('comboKills');
+  const n = Array.from(T.enemies).filter(e => !e.isBoss).length;
+  assert.ok(n > 0);
+  T.applyPowerUp('BOMB');
+  assert.equal(ctx.Stats.getSnapshot().totalKills, before + n);
+  assert.equal(T.evalInGame('comboKills'), combo, 'bomb advanced the combo');
+});
+
+test('scoring audit: every point on Level 9 is explained by a scoring rule', () => {
+  const { T } = play(9);
+  T.evalInGame(`
+    cheatGod = true; globalThis.__exp = 0;
+    const _de = destroyEnemy; destroyEnemy = function (enemy, i) { _de(enemy, i); __exp += enemy.scoreValue * getComboMultiplier(); };
+    const _sa = splitAsteroid; splitAsteroid = function (a) { __exp += a.scoreValue; _sa(a); };
+    const _ap = applyPowerUp; applyPowerUp = function (t) { if (t === 'BOMB') for (const e of enemies) if (!e.isBoss) __exp += e.scoreValue; _ap(t); };
+    const _tl = triggerLevelClear; triggerLevelClear = function () { if (!levelDamageTaken) __exp += 500; _tl(); };`);
+  let prev = 0;
+  for (let f = 0; f < 60 * 40 && T.evalInGame('gameActive'); f++) {
+    const p = T.player, cx = p.x + p.width / 2;
+    let target = null;
+    for (const e of T.enemies) if (!target || e.y > target.y) target = e;
+    const tx = target ? target.x + target.width / 2 : 400;
+    T.keys.ArrowLeft = tx < cx - 6; T.keys.ArrowRight = tx > cx + 6; T.keys.Space = true;
+    T.frameNow = 1e6 + f * 16.667;
+    T.updateGame(16.667);
+    assert.ok(Number.isInteger(T.score), `non-integer score ${T.score}`);
+    assert.ok(T.score >= prev, 'score went down');
+    assert.equal(T.score, T.evalInGame('__exp'), `unexplained points at frame ${f}`);
+    prev = T.score;
+  }
+  assert.ok(T.score > 0, 'autopilot scored nothing');
+});

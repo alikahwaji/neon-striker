@@ -29,6 +29,11 @@ function strokeWithHalo() {
   ctx.stroke();
 }
 
+// Ceiling sentries descend to this y (their formation row's position on
+// screen) at SENTRY_ENTRY_SPEED px per 60 Hz frame, then hold and sweep.
+const SENTRY_MOUNT_Y = 60;
+const SENTRY_ENTRY_SPEED = 2.5;
+
 // Player Space Fighter Class
 class PlayerShip {
   constructor() {
@@ -928,6 +933,13 @@ class Enemy {
     } 
     else if (this.type === 'sentry') {
       let mult = bulletTimeActive ? 0.4 : 1.0;
+      // Lower into the ceiling mount first. Formations spawn 250px above
+      // the screen and fly in, but sentries have speed 0, so they used to
+      // stay at y = -190 forever: unshootable, and Level 18 could never be
+      // cleared because the level waits for every enemy to be destroyed.
+      if (this.y < SENTRY_MOUNT_Y) {
+        this.y = Math.min(SENTRY_MOUNT_Y, this.y + SENTRY_ENTRY_SPEED * m);
+      }
       const sweepSpeed = 0.008 * mult * m;
       this.angle += sweepSpeed * this.sweepDirection;
       if (this.angle > (Math.PI * 3) / 4) {

@@ -502,6 +502,12 @@ function applyPowerUp(type) {
       if (!enemy.isBoss) {
         enemies.splice(e, 1);
         score += enemy.scoreValue;
+        // Bomb kills are real kills: report them like destroyEnemy does, so
+        // they count toward the Pilot Profile and kill achievements. They
+        // deliberately don't advance the combo (one bomb on a full grid
+        // would otherwise jump straight to x5 and multiply its own score).
+        if (window.Achievements) Achievements.notify('enemy_destroyed', { type: enemy.type, combo: comboKills });
+        if (window.Stats) Stats.notify('enemy_destroyed', { combo: comboKills });
         spawnExplosionParticles(enemy.x + enemy.width/2, enemy.y + enemy.height/2, enemy.color, 12);
         
         // Add credits
