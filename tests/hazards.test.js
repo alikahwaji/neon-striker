@@ -14,6 +14,7 @@ function play(levelNum, seed = 1) {
   T.setLevel(levelNum);
   const lvl = T.LEVEL_DATABASE[levelNum];
   T.setActiveLevel(lvl);
+  T.resetWaves(lvl);          // as loadAndStartLevel does
   T.enemies = [];
   T.spawnCampaignForces(lvl);
   T.setGameActive(true);
@@ -40,6 +41,7 @@ test('Level 2 ends within seconds of the last kill (no endless storm)', () => {
     const { T } = play(2, seed);
     T.setInShop(true);                         // 20 s of fighting first
     for (let f = 0; f < 60 * 20; f++) T.updateGame(16.667);
+    T.waveIndex = T.waveCount - 1;   // the final wave
     T.enemies = [];
     T.setInShop(false);
     let f = 0;
