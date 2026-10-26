@@ -53,7 +53,9 @@ window.getGlobalHighScores = async function() {
     const q = query(
       collection(db, "leaderboard"),
       orderBy("score", "desc"),
-      limit(8)
+      // Over-fetch: the UI shows each pilot once (bestPerPilot in ui.js),
+      // so repeat runs by the same pilot mustn't crowd out the top 8.
+      limit(40)
     );
     const querySnapshot = await getDocs(q);
     const scores = [];
@@ -113,7 +115,7 @@ window.getDailyHighScores = async function(dateStr) {
       collection(db, "leaderboard_daily"),
       where("date", "==", dateStr),
       orderBy("score", "desc"),
-      limit(8)
+      limit(40) // see getGlobalHighScores — deduplicated per pilot in ui.js
     );
     const querySnapshot = await getDocs(q);
     const scores = [];

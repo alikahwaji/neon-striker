@@ -72,6 +72,7 @@ const HOOK = `
   rand() { return Math.random(); },
   Enemy, HatchingPod, PlayerShip, Asteroid, EMPShockwave, BOSS_ENEMY_TYPES, BOSS_RUSH_SEQUENCE, LEVEL_DATABASE,
   generateEndlessLevel, spawnCampaignForces, destroyEnemy, applyPowerUp, getLeaderboard,
+  bestPerPilot, saveHighScore,
   startGame, startBossRushRun, startDailyRun, frameMult, frameChance, updateGame, drawGame,
   triggerScreenShake, autoPauseIfPlaying, resizeCanvasToDisplay,
   pollGamepad, padRumble,
