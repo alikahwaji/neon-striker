@@ -191,3 +191,69 @@ test('high-DPI canvas: backing store follows display size x DPR', () => {
   T.resizeCanvasToDisplay();
   assert.deepEqual([canvas.width, canvas.height], [800, 600]);
 });
+
+test('asteroids pushed past a wall are clamped back and bounce cleanly', () => {
+  const { T } = loadGame();
+  const a = new T.Asteroid(400, 100, 'large');
+  const r = a.radius;
+  // Simulate a long-frame overshoot deep past the left wall.
+  a.x = -30; a.vx = -3;
+  a.update(50);
+  assert.equal(a.x, r, 'not clamped to the wall');
+  assert.ok(a.vx > 0, 'should head back into the field');
+  // Following frames stay inside and keep moving right — no edge jitter.
+  let prev = a.x;
+  for (let i = 0; i < 10; i++) {
+    a.update(16.667);
+    assert.ok(a.x >= r && a.x <= 800 - r, `outside field at x=${a.x}`);
+    assert.ok(a.x > prev, 'direction flipped again (jitter)');
+    prev = a.x;
+  }
+  // Right wall, same story.
+  a.x = 900; a.vx = 3;
+  a.update(50);
+  assert.equal(a.x, 800 - r);
+  assert.ok(a.vx < 0);
+});
+
+test('EMP screen flash restarts on a second pulse instead of ending early', () => {
+  const { T, ctx } = loadGame();
+  // Fake timers + a container that records the hit-flash class.
+  let now = 0, nextId = 1;
+  const timers = new Map();
+  ctx.setTimeout = (fn, ms) => { const id = nextId++; timers.set(id, { at: now + ms, fn }); return id; };
+  ctx.clearTimeout = id => { timers.delete(id); };
+  const advance = ms => {
+    now += ms;
+    for (const [id, t] of [...timers]) if (t.at <= now) { timers.delete(id); t.fn(); }
+  };
+  const classes = new Set();
+  const container = { classList: { add: c => classes.add(c), remove: c => classes.delete(c) } };
+  ctx.document.getElementById = id => (id === 'game-container' ? container : null);
+
+  new T.EMPShockwave(100, 100);
+  assert.ok(classes.has('hit-flash'));
+  advance(200);
+  new T.EMPShockwave(100, 100); // second pulse 200 ms in
+  advance(250);                  // 450 ms: first pulse's 400 ms would have expired
+  assert.ok(classes.has('hit-flash'), 'flash cut short by the first EMP timer');
+  advance(200);                  // 650 ms: 450 ms after the second pulse
+  assert.ok(!classes.has('hit-flash'), 'flash never cleared');
+});
+
+test('EMP screen shake respects Reduced Motion and the vibration toggle', () => {
+  const { T } = loadGame();
+  T.traumaLevel = 0;
+  new T.EMPShockwave(100, 100);
+  assert.ok(T.traumaLevel > 0, 'EMP should shake normally');
+
+  T.traumaLevel = 0;
+  T.CONFIG.reducedMotion = true;
+  new T.EMPShockwave(100, 100);
+  assert.equal(T.traumaLevel, 0, 'shook with Reduced Motion on');
+
+  T.CONFIG.reducedMotion = false;
+  T.CONFIG.shakeEnabled = false;
+  new T.EMPShockwave(100, 100);
+  assert.equal(T.traumaLevel, 0, 'shook with Screen Vibration off');
+});

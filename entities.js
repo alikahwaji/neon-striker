@@ -636,9 +636,16 @@ class Asteroid {
     this.y += this.vy * m;
     this.spin += this.spinSpeed * m;
 
-    // Bounce horizontally off side walls
-    if (this.x < this.radius || this.x > CONFIG.width - this.radius) {
-      this.vx = -this.vx;
+    // Bounce horizontally off side walls. Clamp back inside and set the
+    // direction explicitly: flipping vx alone left an asteroid that a long
+    // frame pushed deep past the wall still outside on the next frame, so
+    // it flipped again every frame and jittered along the edge.
+    if (this.x < this.radius) {
+      this.x = this.radius;
+      this.vx = Math.abs(this.vx);
+    } else if (this.x > CONFIG.width - this.radius) {
+      this.x = CONFIG.width - this.radius;
+      this.vx = -Math.abs(this.vx);
     }
   }
 
@@ -1949,6 +1956,11 @@ class WingmanDrone {
   }
 }
 
+// One timer shared by every EMP, so a second pulse within the 400 ms flash
+// window restarts it instead of having its flash cut short by the first
+// pulse's timeout (a per-instance field could never see the earlier timer).
+let _empFlashTimer = null;
+
 // Expanding high-voltage tactical electromagnetic pulse shockwave ring
 class EMPShockwave {
   constructor(x, y) {
@@ -1963,7 +1975,9 @@ class EMPShockwave {
     this.hitEnemies = Object.create(null);
     
     GameAudio.playBombSound();
-    traumaLevel = Math.min(1.0, traumaLevel + 0.4);
+    // Through triggerScreenShake so SCREEN VIBRATION off / Reduced Motion
+    // apply (writing traumaLevel directly bypassed both).
+    triggerScreenShake(0.4);
 
     // Trigger CSS glitch effect — uses cached container ref + debounced
     // timer (same pattern as notifyBaseHit in main.js) so multiple EMP
@@ -1973,8 +1987,11 @@ class EMPShockwave {
       : document.getElementById('game-container');
     if (container) {
       container.classList.add('hit-flash');
-      if (this._hitFlashTimer) clearTimeout(this._hitFlashTimer);
-      this._hitFlashTimer = setTimeout(() => container.classList.remove('hit-flash'), 400);
+      if (_empFlashTimer) clearTimeout(_empFlashTimer);
+      _empFlashTimer = setTimeout(() => {
+        container.classList.remove('hit-flash');
+        _empFlashTimer = null;
+      }, 400);
     }
   }
 
