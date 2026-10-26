@@ -3771,6 +3771,54 @@ function triggerPlayerEMP() {
   padRumble(0.6, 0.9, 260);
 }
 
+// Average distance of an asteroid's drawn outline from its centre, as a
+// fraction of .radius (Asteroid.draw: 0.8 + sin(i * 1.7) * 0.15 per vertex).
+const ASTEROID_DRAWN_RADIUS = 0.8;
+
+// Is point (px, py) inside the player's drawn triangle — nose at top
+// centre, wing tips at the bottom corners — grown by `pad` px?
+function pointInShip(ship, px, py, pad) {
+  if (py < ship.y - pad || py > ship.y + ship.height + pad) return false;
+  const t = Math.min(1, Math.max(0, (py - ship.y) / ship.height)); // 0 nose .. 1 wings
+  const halfWidth = (ship.width / 2) * t + pad;
+  return Math.abs(px - (ship.x + ship.width / 2)) <= halfWidth;
+}
+
+// Enemy laser vs ship: the laser is drawn centred on (x, y), width x
+// height. Sample its centre and both ends against the ship triangle,
+// padded by half the laser's width.
+function laserHitsShip(laser, ship) {
+  const pad = laser.width / 2;
+  const half = laser.height / 2;
+  return pointInShip(ship, laser.x, laser.y, pad) ||
+         pointInShip(ship, laser.x, laser.y - half, pad) ||
+         pointInShip(ship, laser.x, laser.y + half, pad);
+}
+
+// A destroyed asteroid breaks into two smaller pieces (large -> medium ->
+// small); a small one drops scrap. Shared by the laser and homing-missile
+// paths, which had drifted apart (missile kills never dropped scrap).
+// Pieces are marked isFragment: they exist because the player shot their
+// parent, so letting them drift off-screen doesn't cost shield (see the
+// escape check in main.js). Otherwise shooting a rock made things worse:
+// one large escaping costs 10, its seven fragments could cost 70.
+function splitAsteroid(ast) {
+  let pieces = [];
+  if (ast.size === 'large') {
+    pieces = [new Asteroid(ast.x - 15, ast.y, 'medium', -1.2, ast.vy + 0.3),
+              new Asteroid(ast.x + 15, ast.y, 'medium', 1.2, ast.vy + 0.3)];
+  } else if (ast.size === 'medium') {
+    pieces = [new Asteroid(ast.x - 10, ast.y, 'small', -1.8, ast.vy + 0.5),
+              new Asteroid(ast.x + 10, ast.y, 'small', 1.8, ast.vy + 0.5)];
+  } else {
+    scrapItems.push(new ScrapCredit(ast.x, ast.y));
+  }
+  for (const p of pieces) {
+    p.isFragment = true;
+    asteroids.push(p);
+  }
+}
+
 function destroyEnemy(enemy, eIndex) {
   enemies.splice(eIndex, 1);
   // Combo multiplier — chain kills within 2 s for ×2/×3/×4/×5 score.
@@ -3902,17 +3950,7 @@ function handleCollisions() {
           spawnExplosionParticles(ast.x, ast.y, ast.color, ast.size === 'large' ? 25 : 12);
           spawnDebris(ast.x, ast.y, ast.color);
           
-          // Split asteroid physics
-          if (ast.size === 'large') {
-            asteroids.push(new Asteroid(ast.x - 15, ast.y, 'medium', -1.2, ast.vy + 0.3));
-            asteroids.push(new Asteroid(ast.x + 15, ast.y, 'medium', 1.2, ast.vy + 0.3));
-          } else if (ast.size === 'medium') {
-            asteroids.push(new Asteroid(ast.x - 10, ast.y, 'small', -1.8, ast.vy + 0.5));
-            asteroids.push(new Asteroid(ast.x + 10, ast.y, 'small', 1.8, ast.vy + 0.5));
-          } else {
-            // Drop credits on small ones
-            scrapItems.push(new ScrapCredit(ast.x, ast.y));
-          }
+          splitAsteroid(ast);
         }
         if (!laser.piercing) break;
       }
@@ -3966,27 +4004,22 @@ function handleCollisions() {
           spawnExplosionParticles(ast.x, ast.y, ast.color, ast.size === 'large' ? 25 : 12);
           spawnDebris(ast.x, ast.y, ast.color);
           
-          if (ast.size === 'large') {
-            asteroids.push(new Asteroid(ast.x - 15, ast.y, 'medium', -1.2, ast.vy + 0.3));
-            asteroids.push(new Asteroid(ast.x + 15, ast.y, 'medium', 1.2, ast.vy + 0.3));
-          } else if (ast.size === 'medium') {
-            asteroids.push(new Asteroid(ast.x - 10, ast.y, 'small', -1.8, ast.vy + 0.5));
-            asteroids.push(new Asteroid(ast.x + 10, ast.y, 'small', 1.8, ast.vy + 0.5));
-          }
+          splitAsteroid(ast);
         }
         break;
       }
     }
   }
 
-  // 3. Enemy Lasers vs Player
+  // 3. Enemy Lasers vs Player — tested against the ship's drawn triangle,
+  // using the laser's drawn size. The old test grew each laser by its FULL
+  // width / height on every side (lasers are drawn centred, so 2x their
+  // real size) against the ship's bounding box, whose top corners beside
+  // the nose are empty — shots visibly passing the nose still hit.
   for (let l = enemyLasers.length - 1; l >= 0; l--) {
     const laser = enemyLasers[l];
     
-    if (laser.x + laser.width > player.x &&
-        laser.x - laser.width < player.x + player.width &&
-        laser.y + laser.height > player.y &&
-        laser.y - laser.height < player.y + player.height) {
+    if (laserHitsShip(laser, player)) {
       
       enemyLasers.splice(l, 1);
       // Heavy bolts (sniper charge shots carry damage 2) hit harder than
@@ -4070,11 +4103,14 @@ function handleCollisions() {
     const ast = asteroids[a];
     if (ast instanceof Monolith) continue;
     
-    // Asteroid vs Player — squared-distance test.
+    // Asteroid vs Player — squared-distance test. Uses the rock's drawn
+    // size: its outline sits at 66-95% of .radius (ASTEROID_DRAWN_RADIUS),
+    // so the full radius registered hits ~7px before a large rock visibly
+    // touched the ship.
     {
       const pdx = player.x + player.width / 2 - ast.x;
       const pdy = player.y + player.height / 2 - ast.y;
-      const pReach = ast.radius + 18;
+      const pReach = ast.radius * ASTEROID_DRAWN_RADIUS + 18;
       if (pdx * pdx + pdy * pdy < pReach * pReach) {
         asteroids.splice(a, 1);
         spawnExplosionParticles(ast.x, ast.y, ast.color, 12);
@@ -5175,9 +5211,13 @@ function handleWaveSpawning(dt) {
   // a 144 Hz display doesn't roll ~2.4x as many asteroids / eggs / turrets.
   const m = frameMult(dt);
 
-  // Random Asteroid drops check (Level 2, 8, 9, endless sectors)
+  // Random Asteroid drops check (Level 2, 8, 9, endless sectors).
+  // Gated on enemies remaining, like the monoliths below: the level only
+  // clears with zero asteroids on screen, and an endless storm meant that
+  // moment almost never came — after the last kill, Level 2/8/9 dragged on
+  // for minutes while escaping rocks drained the shield (median ~1,100+ HP).
   const lvlData = activeLevelData || {};
-  if (lvlData.asteroidChance && gameActive && !gamePaused) {
+  if (lvlData.asteroidChance && gameActive && !gamePaused && enemies.length > 0) {
     if (Math.random() < frameChance(lvlData.asteroidChance, m)) {
       const rx = Math.random() * (CONFIG.width - 80) + 40;
       asteroids.push(new Asteroid(rx, -40, 'large'));
@@ -5688,6 +5728,11 @@ function updateGame(dt) {
       // Monolith slabs are indestructible scenery — letting one drift past
       // is the ONLY way to deal with it, so exiting must never cost HP.
       if (ast instanceof Monolith) continue;
+      // Pieces of a rock the player already shot (splitAsteroid) leave
+      // freely — only untouched asteroids slipping past cost shield. And
+      // once every enemy is destroyed the sector is won: the last rocks
+      // drifting off while the level wraps up don't cost shield either.
+      if (ast.isFragment || enemies.length === 0) continue;
       // Damaging structural base — was previously SILENT (no on-screen cue
       // when an asteroid slipped past), which made Level 2's high-rate
       // asteroid storm feel like random unprovoked HP loss. Now fires a
