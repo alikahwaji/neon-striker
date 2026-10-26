@@ -70,7 +70,7 @@ const HOOK = `
   setBossRush(v) { bossRushMode = v; },
   setCtx(v) { ctx = v; }, setCanvas(v) { canvas = v; },
   rand() { return Math.random(); },
-  Enemy, HatchingPod, PlayerShip, BOSS_ENEMY_TYPES, BOSS_RUSH_SEQUENCE, LEVEL_DATABASE,
+  Enemy, HatchingPod, PlayerShip, Asteroid, EMPShockwave, BOSS_ENEMY_TYPES, BOSS_RUSH_SEQUENCE, LEVEL_DATABASE,
   generateEndlessLevel, spawnCampaignForces, destroyEnemy, applyPowerUp, getLeaderboard,
   startGame, startBossRushRun, startDailyRun, frameMult, frameChance, updateGame, drawGame,
   triggerScreenShake, autoPauseIfPlaying, resizeCanvasToDisplay
