@@ -132,6 +132,16 @@ A CI check (`.github/workflows/bundle-check.yml`) fails any PR where `game.bundl
 
 > **Note:** this is a deterrent, not true anti-cheat. Because the game is 100% client-side, a determined user can still tamper via Sources-panel breakpoints. Leaderboard integrity is additionally enforced server-side by [`firestore.rules`](firestore.rules) (score cap + shape validation). True tamper-proof scoring would require server-authoritative validation (a Cloud Function).
 
+### 🧪 Tests
+
+```bash
+npm test             # rebuild first (node build.js) — tests run against game.bundle.js
+```
+
+Zero-dependency tests on Node's built-in runner (`tests/`). [`tests/harness.js`](tests/harness.js) loads the shipped bundle into a Node VM with a fake DOM/canvas and exposes the game's internals, so the tests check gameplay rules (boss spawns, scoring, difficulty, restart paths, refresh-rate independence, reduced motion, auto-pause, high-DPI sizing) and run every level's game loop at 60 Hz and 144 Hz with a per-frame timeout that catches infinite loops. CI runs them on every PR.
+
+**Changed `styles.css`?** Bump the `styles.css?v=N` number in `index.html` too, or returning players keep their cached stylesheet. CI enforces this (`tests/check-css-version.js`).
+
 ---
 
 ## 📜 MIT License
