@@ -5,7 +5,8 @@
   "private": true,
   "scripts": {
     "build": "node build.js",
-    "build:check": "node build.js --check"
+    "build:check": "node build.js --check",
+    "test": "node --test \"tests/*.test.js\""
   },
   "repository": {
     "type": "git",

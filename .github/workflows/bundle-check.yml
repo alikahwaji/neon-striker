@@ -3,7 +3,9 @@ name: Bundle freshness check
 # Ensures game.bundle.js is regenerated whenever a gameplay source file
 # changes. If a contributor edits e.g. config.js but forgets to run
 # `node build.js`, this fails the PR rather than silently shipping a stale
-# bundle to GitHub Pages.
+# bundle to GitHub Pages. Also runs the headless gameplay tests against the
+# shipped bundle, and checks the styles.css cache-buster was bumped when the
+# stylesheet changes.
 
 on:
   push:
@@ -21,12 +23,21 @@ on:
       - 'ui.js'
       - 'build.js'
       - 'game.bundle.js'
+      - 'styles.css'
+      - 'index.html'
+      - 'package.json'
+      - 'tests/**'
+      - '.github/workflows/bundle-check.yml'
 
 jobs:
   check-bundle:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          # Full history so the CSS cache-buster check can find the PR's
+          # merge base with the target branch.
+          fetch-depth: 0
       - uses: actions/setup-node@v5
         with:
           node-version: '24'
@@ -34,3 +45,8 @@ jobs:
         run: node build.js --check
       - name: Syntax-check the bundle
         run: node --check game.bundle.js
+      - name: Gameplay tests (headless, against the shipped bundle)
+        run: npm test
+      - name: styles.css cache-buster bumped when the stylesheet changed
+        if: github.event_name == 'pull_request'
+        run: node tests/check-css-version.js "origin/${{ github.base_ref }}"
