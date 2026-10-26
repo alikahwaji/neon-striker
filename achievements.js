@@ -151,6 +151,8 @@ const Achievements = (function () {
     }
   };
 
+  let skinsDirty = false;
+
   function persist() {
     try {
       const payload = {
@@ -196,7 +198,12 @@ const Achievements = (function () {
     } else if (eventName === 'scrap_collected') {
       state.perRun.scrapCollected += (payload && payload.amount) || 1;
     } else if (eventName === 'skin_selected') {
-      if (payload && payload.skin) state.skinsTried.add(payload.skin);
+      if (payload && payload.skin && !state.skinsTried.has(payload.skin)) {
+        state.skinsTried.add(payload.skin);
+        // Save now — otherwise Art Collector progress only reached storage
+        // as a side effect of a later kill / scrap pickup or unlock.
+        skinsDirty = true;
+      }
     } else if (eventName === 'upgrade_purchased') {
       if (payload && payload.type) state.perRun.upgradeTypes.add(payload.type);
     }
@@ -214,7 +221,8 @@ const Achievements = (function () {
       }
     }
 
-    if (newlyUnlocked.length > 0) {
+    if (newlyUnlocked.length > 0 || skinsDirty) {
+      skinsDirty = false;
       persist();
       newlyUnlocked.forEach(def => emit('unlocked', def));
     } else if (eventName === 'enemy_destroyed' || eventName === 'scrap_collected') {

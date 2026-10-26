@@ -44,7 +44,7 @@ function drawSynthwaveBackground() {
     let currentSpeed = star.speed;
     if (isWarping) currentSpeed *= 15;
     
-    star.y += currentSpeed;
+    star.y += currentSpeed * renderFrameMult;
     if (star.y > CONFIG.height) {
       star.y = 0;
       star.x = Math.random() * CONFIG.width;
@@ -82,7 +82,7 @@ function drawSynthwaveBackground() {
     ctx.font = '14px monospace';
     matrixStreams.forEach(stream => {
       let speedMult = bulletTimeActive ? 0.4 : 1.0;
-      stream.y += stream.speed * speedMult;
+      stream.y += stream.speed * speedMult * renderFrameMult;
       if (stream.y - stream.length * 16 > CONFIG.height) {
         stream.y = Math.random() * -200;
         stream.speed = Math.random() * 3 + 2;
@@ -209,7 +209,7 @@ function drawSynthwaveBackground() {
   }
 
   // Grid offsets
-  gridOffset += 1.8;
+  gridOffset += 1.8 * renderFrameMult;
   if (gridOffset >= 60) gridOffset = 0;
 
   ctx.strokeStyle = gridLineCol1;

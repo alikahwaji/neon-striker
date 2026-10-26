@@ -147,11 +147,12 @@ class SynthAudioEngine {
     
     // Create master gain nodes
     this.masterMusicGain = this.ctx.createGain();
-    this.masterMusicGain.gain.setValueAtTime(this.musicVolume, this.ctx.currentTime);
+    // Honour a mute toggled on the menu before the context existed.
+    this.masterMusicGain.gain.setValueAtTime(this.muted ? 0 : this.musicVolume, this.ctx.currentTime);
     this.masterMusicGain.connect(this.ctx.destination);
     
     this.masterSfxGain = this.ctx.createGain();
-    this.masterSfxGain.gain.setValueAtTime(this.sfxVolume, this.ctx.currentTime);
+    this.masterSfxGain.gain.setValueAtTime(this.muted ? 0 : this.sfxVolume, this.ctx.currentTime);
     this.masterSfxGain.connect(this.ctx.destination);
     
     this.createNoiseBuffer();
@@ -765,6 +766,12 @@ let levelDamageTaken = false;
 
 // All-Ages Expansion globals
 let selectedDifficulty = 'hero'; // 'cadet', 'hero', 'elite'
+
+// Hull pool before shield upgrades. Cadet gets the double hull the README
+// promises; Hero and Elite start at 100.
+function getBaseMaxHealth() {
+  return selectedDifficulty === 'cadet' ? 200 : 100;
+}
 let selectedSkin = 'default';    // 'default', 'toxic', 'solar', 'void', 'saucer'
 let cheatRainbow = false;
 let cheatGod = false;
@@ -890,6 +897,24 @@ let frameNow = 0;
 // lookup. Numeric ids never collide because each entity ctor bumps the
 // counter exactly once.
 let nextEntityId = 0;
+
+// Per-frame movement in this game is tuned in "60 Hz frames". frameMult
+// converts a frame's dt (ms) into that unit so additive steps can be
+// written `x += vx * m` and stay refresh-rate independent (144 Hz used to
+// run ~2.4x fast). Same convention Laser / Asteroid / Particle already use.
+const FRAME_MS = 16.667;
+// Set once per rAF tick from the clamped dt; render.js scrolls the
+// background (stars, matrix rain, grid) by it, since drawing also runs on
+// menus where updateGame doesn't.
+let renderFrameMult = 1;
+function frameMult(dt) {
+  return (dt || FRAME_MS) / FRAME_MS;
+}
+// Per-frame probability p rescaled so the per-second rate is the same at
+// any refresh rate (exact for independent rolls).
+function frameChance(p, m) {
+  return 1 - Math.pow(1 - p, m);
+}
 
 // Score combo multiplier state. Each consecutive kill within COMBO_WINDOW_MS
 // of the previous bumps comboKills; the multiplier is derived from
@@ -1131,25 +1156,29 @@ class PlayerShip {
   }
 
   update(dt) {
+    const m = frameMult(dt);
     // Process input keyboard movements
+    const accel = CONFIG.playerSpeed * 0.15 * m;
     if (keys['ArrowLeft'] || keys['KeyA']) {
-      this.vx -= CONFIG.playerSpeed * 0.15;
+      this.vx -= accel;
     }
     if (keys['ArrowRight'] || keys['KeyD']) {
-      this.vx += CONFIG.playerSpeed * 0.15;
+      this.vx += accel;
     }
     if (keys['ArrowUp'] || keys['KeyW']) {
-      this.vy -= CONFIG.playerSpeed * 0.15;
+      this.vy -= accel;
     }
     if (keys['ArrowDown'] || keys['KeyS']) {
-      this.vy += CONFIG.playerSpeed * 0.15;
+      this.vy += accel;
     }
 
-    // Apply smooth inertia friction
-    this.vx *= CONFIG.playerFriction;
-    this.x += this.vx;
-    this.vy *= CONFIG.playerFriction;
-    this.y += this.vy;
+    // Apply smooth inertia friction (exponentiated so the decay per second
+    // is the same at any refresh rate).
+    const friction = Math.pow(CONFIG.playerFriction, m);
+    this.vx *= friction;
+    this.x += this.vx * m;
+    this.vy *= friction;
+    this.y += this.vy * m;
 
     // Apply level specific physical constraint borders
     let minX = 15;
@@ -1194,7 +1223,7 @@ class PlayerShip {
       else if (selectedDifficulty === 'elite') pullForce = 0.22;
       
       const pullDir = player.x + player.width / 2 < 400 ? 1 : -1;
-      this.vx += pullDir * pullForce;
+      this.vx += pullDir * pullForce * m;
     }
 
     // Shooting cannon fires
@@ -1212,8 +1241,9 @@ class PlayerShip {
       }
     }
 
+    // Counted in 60 Hz frames, so 60 = 1 s at any refresh rate.
     if (this.invulnFrames > 0) {
-      this.invulnFrames--;
+      this.invulnFrames -= m;
     }
   }
 
@@ -1507,7 +1537,8 @@ class HomingMissile {
     this.trailTimer = 0;
   }
 
-  update() {
+  update(dt) {
+    const m = frameMult(dt);
     // Seek Target Vector calculation
     if (this.target && this.target.health > 0 && enemies.includes(this.target)) {
       const tx = this.target.x + this.target.width / 2;
@@ -1521,9 +1552,11 @@ class HomingMissile {
         const targetVx = (dx / dist) * this.speed;
         const targetVy = (dy / dist) * this.speed;
         
-        // Steering factor (curves the rocket trajectory smoothly)
-        this.vx += (targetVx - this.vx) * 0.15;
-        this.vy += (targetVy - this.vy) * 0.15;
+        // Steering factor (curves the rocket trajectory smoothly) — 0.15
+        // per 60 Hz frame, exponentiated so turn rate is refresh-independent.
+        const steer = 1 - Math.pow(0.85, m);
+        this.vx += (targetVx - this.vx) * steer;
+        this.vy += (targetVy - this.vy) * steer;
       }
     } else {
       // Find new target if current is destroyed. Squared distance only —
@@ -1545,12 +1578,13 @@ class HomingMissile {
       if (closest) this.target = closest;
     }
 
-    this.x += this.vx;
-    this.y += this.vy;
+    this.x += this.vx * m;
+    this.y += this.vy * m;
 
-    // Rocket particles trail
-    this.trailTimer++;
-    if (this.trailTimer % 2 === 0) {
+    // Rocket particles trail — one puff per two 60 Hz frames.
+    this.trailTimer += m;
+    if (this.trailTimer >= 2) {
+      this.trailTimer -= 2;
       particles.push(new Particle(this.x, this.y, '#ffea00'));
     }
   }
@@ -1918,38 +1952,40 @@ class Enemy {
       return;
     }
 
-    this.phase += 0.035;
+    // Movement below is tuned per 60 Hz frame; m rescales it to real time.
+    const m = frameMult(dt);
+    this.phase += 0.035 * m;
 
     // Movement Behavior AI based on type
     if (this.type === 'scout') {
-      this.y += this.speed * 0.8;
-      this.x += Math.sin(this.phase) * 1.5;
+      this.y += this.speed * 0.8 * m;
+      this.x += Math.sin(this.phase) * 1.5 * m;
     } 
     else if (this.type === 'swarmer') {
-      this.y += this.speed * 0.55;
-      this.x += Math.sin(this.phase * 0.5) * 0.6;
+      this.y += this.speed * 0.55 * m;
+      this.x += Math.sin(this.phase * 0.5) * 0.6 * m;
     } 
     else if (this.type === 'kamikaze') {
-      this.y += this.speed;
+      this.y += this.speed * m;
       if (player && this.y < player.y - 120) {
         const targetDx = player.x + player.width / 2 - this.x;
-        this.x += Math.sign(targetDx) * 1.4;
+        this.x += Math.sign(targetDx) * 1.4 * m;
       }
     } 
     else if (this.type === 'phase') {
       // Slowly drift down, occasionally fading out of visibility
-      this.y += this.speed * 0.7;
-      this.x += Math.sin(this.phase * 0.8) * 1.8;
+      this.y += this.speed * 0.7 * m;
+      this.x += Math.sin(this.phase * 0.8) * 1.8 * m;
       this.alpha = 0.2 + Math.abs(Math.sin(this.phase * 2)) * 0.8;
     } 
     else if (this.type === 'heatSeeker') {
       // Slowly swoops, homing coordinates
-      this.y += this.speed * 0.6;
-      this.x += Math.sin(this.phase) * 1.2;
+      this.y += this.speed * 0.6 * m;
+      this.x += Math.sin(this.phase) * 1.2 * m;
     } 
     else if (this.type === 'boss' || this.type === 'boss2') {
       // Horizontal hover loops
-      this.x += this.speed * this.bossDirection;
+      this.x += this.speed * this.bossDirection * m;
       if (this.x < 40) {
         this.x = 40;
         this.bossDirection = 1;
@@ -1962,7 +1998,7 @@ class Enemy {
     } 
     else if (this.type === 'sandworm') {
       // Serpentine wavy flying maneuvers across canvas!
-      this.serpentinePhase += 0.02;
+      this.serpentinePhase += 0.02 * m;
       this.x = CONFIG.width / 2 - this.width / 2 + Math.sin(this.serpentinePhase * 2) * (CONFIG.width / 2 - 80);
       this.y = 120 + Math.cos(this.serpentinePhase) * 60;
       
@@ -1970,15 +2006,15 @@ class Enemy {
       this.shieldActive = Math.sin(this.serpentinePhase * 4) > 0.4;
     } 
     else if (this.type === 'shieldBlocker') {
-      this.y += this.speed * 0.7;
+      this.y += this.speed * 0.7 * m;
     } 
     else if (this.type === 'sniper') {
       if (this.y < 120) {
-        this.y += this.speed * 1.2;
+        this.y += this.speed * 1.2 * m;
       }
       if (player) {
         const targetDx = player.x + player.width / 2 - (this.x + this.width / 2);
-        this.x += Math.sign(targetDx) * 0.9;
+        this.x += Math.sign(targetDx) * 0.9 * m;
       }
       let mult = bulletTimeActive ? 0.4 : 1.0;
       this.chargeTimer += dt * mult;
@@ -1989,8 +2025,8 @@ class Enemy {
     } 
     else if (this.type === 'lightCycle') {
       let mult = bulletTimeActive ? 0.4 : 1.0;
-      this.y += this.speed * 0.5 * mult;
-      this.x += this.speed * this.directionX * 1.5 * mult;
+      this.y += this.speed * 0.5 * mult * m;
+      this.x += this.speed * this.directionX * 1.5 * mult * m;
       if (this.x < 15) {
         this.x = 15;
         this.directionX = 1;
@@ -2002,7 +2038,7 @@ class Enemy {
     } 
     else if (this.type === 'sentry') {
       let mult = bulletTimeActive ? 0.4 : 1.0;
-      const sweepSpeed = 0.008 * mult;
+      const sweepSpeed = 0.008 * mult * m;
       this.angle += sweepSpeed * this.sweepDirection;
       if (this.angle > (Math.PI * 3) / 4) {
         this.angle = (Math.PI * 3) / 4;
@@ -2015,7 +2051,7 @@ class Enemy {
     } 
     else if (this.type === 'unicron') {
       let mult = bulletTimeActive ? 0.4 : 1.0;
-      this.x += this.speed * this.bossDirection * mult;
+      this.x += this.speed * this.bossDirection * mult * m;
       if (this.x < 40) {
         this.x = 40;
         this.bossDirection = 1;
@@ -2041,7 +2077,7 @@ class Enemy {
         const dy = my - py;
         const dist = Math.sqrt(dx * dx + dy * dy);
         if (dist > 20) {
-          const pullStrength = 0.08 * mult;
+          const pullStrength = 0.08 * mult * m;
           player.vx += (dx / dist) * pullStrength;
           if (player.y > 220) {
             player.y += (dy / dist) * pullStrength * 1.5;
@@ -2058,7 +2094,9 @@ class Enemy {
         
         let baseTimer = 2200 + Math.random() * 2500;
         if (this.type === 'boss' || this.type === 'boss2') {
-          baseTimer = 1400 - currentLevel * 80;
+          // Floor keeps late campaign / endless bosses from hitting <=0 and
+          // firing a full volley every frame (1400 - 18*80 = -40).
+          baseTimer = Math.max(600, 1400 - currentLevel * 80);
         } else if (this.type === 'sandworm') {
           baseTimer = 800; // Super fast firing rate
         }
@@ -2523,12 +2561,19 @@ class HatchingPod {
     this.color = '#39ff14'; // Pulsing green eggs
     this.health = 2;
     this.phase = Math.random() * Math.PI;
+    // destroyEnemy adds scoreValue unconditionally and the pierce/EMP dedup
+    // keys on id — without these a pod kill turned the score into NaN and
+    // every pod shared the hitEnemies["undefined"] slot.
+    this.scoreValue = 150;
+    this.isBoss = false;
+    this.id = ++nextEntityId;
   }
 
-  update() {
-    this.x += this.vx;
-    this.y += this.vy;
-    this.phase += 0.05;
+  update(dt) {
+    const m = frameMult(dt);
+    this.x += this.vx * m;
+    this.y += this.vy * m;
+    this.phase += 0.05 * m;
   }
 
   draw() {
@@ -2580,7 +2625,8 @@ class ScrapCredit {
     this.phase = Math.random() * Math.PI;
   }
 
-  update() {
+  update(dt) {
+    const m = frameMult(dt);
     // Magnetism pull to Player ship
     if (player) {
       const px = player.x + player.width / 2;
@@ -2595,14 +2641,14 @@ class ScrapCredit {
         this.vy += (dy / dist) * magnetSpeed - this.vy;
       } else {
         // Slow float
-        this.vx *= 0.95;
+        this.vx *= Math.pow(0.95, m);
         this.vy = 1.5;
       }
     }
 
-    this.x += this.vx;
-    this.y += this.vy;
-    this.phase += 0.08;
+    this.x += this.vx * m;
+    this.y += this.vy * m;
+    this.phase += 0.08 * m;
   }
 
   draw() {
@@ -2635,10 +2681,11 @@ class SpiceCloud {
     this.phase = Math.random() * Math.PI;
   }
 
-  update() {
-    this.x += this.vx;
-    this.y += this.vy;
-    this.phase += 0.03;
+  update(dt) {
+    const m = frameMult(dt);
+    this.x += this.vx * m;
+    this.y += this.vy * m;
+    this.phase += 0.03 * m;
   }
 
   draw() {
@@ -2666,8 +2713,8 @@ class Monolith {
     this.color = '#000'; // Completely Pitch Black!
   }
 
-  update() {
-    this.y += this.vy;
+  update(dt) {
+    this.y += this.vy * frameMult(dt);
   }
 
   draw() {
@@ -2702,7 +2749,7 @@ class WallTurret {
   }
 
   update(dt) {
-    this.y += 1.8; // Grid scroll speed match
+    this.y += 1.8 * frameMult(dt); // Grid scroll speed match
     
     if (gameActive && !gamePaused) {
       this.shootTimer -= dt;
@@ -2782,9 +2829,10 @@ class PowerUp {
     else if (type === 'BOMB') { this.color = '#8b00ff'; this.label = '💣'; }
   }
 
-  update() {
-    this.y += this.speed;
-    this.phase += 0.05;
+  update(dt) {
+    const m = frameMult(dt);
+    this.y += this.speed * m;
+    this.phase += 0.05 * m;
   }
 
   draw() {
@@ -2894,6 +2942,7 @@ class Debris {
   update(dt) {
     let mult = 1.0;
     if (bulletTimeActive) mult = 0.4;
+    mult *= frameMult(dt);
     
     this.x += this.vx * mult;
     this.y += this.vy * mult;
@@ -2953,7 +3002,7 @@ class WingmanDrone {
     
     let rotationSpeed = 0.04;
     if (bulletTimeActive) rotationSpeed *= 0.4;
-    this.angle += rotationSpeed;
+    this.angle += rotationSpeed * frameMult(dt);
     
     const px = player.x + player.width / 2;
     const py = player.y + player.height / 2;
@@ -3040,7 +3089,7 @@ class EMPShockwave {
     let mult = 1.0;
     if (bulletTimeActive) mult = 0.4;
     
-    this.radius += this.speed * mult;
+    this.radius += this.speed * mult * frameMult(dt);
     
     // Clear active hostile energy bolts inside expanding ring
     for (let i = enemyLasers.length - 1; i >= 0; i--) {
@@ -3115,9 +3164,10 @@ class FloatingText {
     this.fontSize = 13;
   }
 
-  update() {
-    this.y += this.vy;
-    this.alpha -= this.decay;
+  update(dt) {
+    const m = frameMult(dt);
+    this.y += this.vy * m;
+    this.alpha -= this.decay * m;
   }
 
   draw() {
@@ -3181,7 +3231,7 @@ function drawSynthwaveBackground() {
     let currentSpeed = star.speed;
     if (isWarping) currentSpeed *= 15;
     
-    star.y += currentSpeed;
+    star.y += currentSpeed * renderFrameMult;
     if (star.y > CONFIG.height) {
       star.y = 0;
       star.x = Math.random() * CONFIG.width;
@@ -3219,7 +3269,7 @@ function drawSynthwaveBackground() {
     ctx.font = '14px monospace';
     matrixStreams.forEach(stream => {
       let speedMult = bulletTimeActive ? 0.4 : 1.0;
-      stream.y += stream.speed * speedMult;
+      stream.y += stream.speed * speedMult * renderFrameMult;
       if (stream.y - stream.length * 16 > CONFIG.height) {
         stream.y = Math.random() * -200;
         stream.speed = Math.random() * 3 + 2;
@@ -3346,7 +3396,7 @@ function drawSynthwaveBackground() {
   }
 
   // Grid offsets
-  gridOffset += 1.8;
+  gridOffset += 1.8 * renderFrameMult;
   if (gridOffset >= 60) gridOffset = 0;
 
   ctx.strokeStyle = gridLineCol1;
@@ -3951,6 +4001,14 @@ function spawnFacehuggerDrones(x, y) {
 
 function damagePlayer(amount) {
   if (cheatGod) {
+    // A hit absorbed by god mode still counts as "hit" for the damage-free
+    // rewards, or invincibility would farm Untouchable and the PERFECT
+    // SECTOR bonus every level. Skip during i-frames so a single overlap
+    // isn't reported every frame.
+    if (player.invulnFrames <= 0) {
+      levelDamageTaken = true;
+      if (window.Achievements) Achievements.notify('damage_taken', { amount });
+    }
     floatingTexts.push(new FloatingText(player.x + player.width / 2, player.y - 20, 'GOD MODE ACTIVE', '#ffffff'));
     GameAudio.playPowerUpSound();
     player.invulnFrames = 30;
@@ -4010,8 +4068,10 @@ function applyPowerUp(type) {
         
         // Add credits
         scrapItems.push(new ScrapCredit(enemy.x + enemy.width/2, enemy.y + enemy.height/2));
-      } else {
-        enemy.takeDamage(25);
+      } else if (enemy.takeDamage(25)) {
+        // Same kill path as a laser: the old code ignored this return, so a
+        // boss bombed to <=0 HP kept fighting until hit again.
+        destroyEnemy(enemy, e);
       }
     }
     enemyLasers = [];
@@ -4199,6 +4259,8 @@ const Achievements = (function () {
     }
   };
 
+  let skinsDirty = false;
+
   function persist() {
     try {
       const payload = {
@@ -4244,7 +4306,12 @@ const Achievements = (function () {
     } else if (eventName === 'scrap_collected') {
       state.perRun.scrapCollected += (payload && payload.amount) || 1;
     } else if (eventName === 'skin_selected') {
-      if (payload && payload.skin) state.skinsTried.add(payload.skin);
+      if (payload && payload.skin && !state.skinsTried.has(payload.skin)) {
+        state.skinsTried.add(payload.skin);
+        // Save now — otherwise Art Collector progress only reached storage
+        // as a side effect of a later kill / scrap pickup or unlock.
+        skinsDirty = true;
+      }
     } else if (eventName === 'upgrade_purchased') {
       if (payload && payload.type) state.perRun.upgradeTypes.add(payload.type);
     }
@@ -4262,7 +4329,8 @@ const Achievements = (function () {
       }
     }
 
-    if (newlyUnlocked.length > 0) {
+    if (newlyUnlocked.length > 0 || skinsDirty) {
+      skinsDirty = false;
       persist();
       newlyUnlocked.forEach(def => emit('unlocked', def));
     } else if (eventName === 'enemy_destroyed' || eventName === 'scrap_collected') {
@@ -4369,8 +4437,16 @@ const Stats = (function () {
       if (!raw) return;
       const parsed = JSON.parse(raw);
       if (parsed && typeof parsed === 'object') {
+        // Only accept values whose type matches the default — a stored
+        // skinUsage:null would crash run_started (blocking every Start), and
+        // a string count would turn ++ into string concatenation.
         Object.keys(data).forEach(k => {
-          if (k in parsed) data[k] = parsed[k];
+          if (!(k in parsed)) return;
+          const v = parsed[k];
+          const def = data[k];
+          if (typeof def === 'number' && Number.isFinite(v)) data[k] = v;
+          else if (def && typeof def === 'object' && v && typeof v === 'object' && !Array.isArray(v)) data[k] = v;
+          else if (typeof def === typeof v && typeof def !== 'object') data[k] = v;
         });
       }
     } catch (e) {
@@ -4404,8 +4480,9 @@ const Stats = (function () {
     } else if (eventName === 'level_completed') {
       const lv = (payload && payload.level) || 0;
       if (lv > data.longestRunLevel) data.longestRunLevel = lv;
-      // Beating Level 20 = full campaign completion.
-      if (lv >= 20) data.runsCompleted++;
+      // Beating Level 20 = full campaign completion. Exactly 20: endless
+      // sectors 21+ also report level_completed and used to count again.
+      if (lv === 20) data.runsCompleted++;
       dirty = true;
       persist();
     }
@@ -4487,10 +4564,14 @@ function handleWaveSpawning(dt) {
     }
   }
 
+  // Spawn chances below are per 60 Hz frame; frameChance rescales them so
+  // a 144 Hz display doesn't roll ~2.4x as many asteroids / eggs / turrets.
+  const m = frameMult(dt);
+
   // Random Asteroid drops check (Level 2, 8, 9, endless sectors)
   const lvlData = activeLevelData || {};
   if (lvlData.asteroidChance && gameActive && !gamePaused) {
-    if (Math.random() < lvlData.asteroidChance) {
+    if (Math.random() < frameChance(lvlData.asteroidChance, m)) {
       const rx = Math.random() * (CONFIG.width - 80) + 40;
       asteroids.push(new Asteroid(rx, -40, 'large'));
     }
@@ -4498,7 +4579,7 @@ function handleWaveSpawning(dt) {
 
   // Level 12 Creepy Egg pulser drops chance
   if (lvlData.hatchingPods && gameActive && !gamePaused && enemies.length < 5) {
-    if (Math.random() < 0.005) {
+    if (Math.random() < frameChance(0.005, m)) {
       const rx = Math.random() * (CONFIG.width - 100) + 50;
       enemies.push(new HatchingPod(rx, -40));
     }
@@ -4506,7 +4587,7 @@ function handleWaveSpawning(dt) {
 
   // Level 15 Spice Cloud spawners
   if (lvlData.spiceClouds && gameActive && !gamePaused) {
-    if (Math.random() < 0.015) {
+    if (Math.random() < frameChance(0.015, m)) {
       const rx = Math.random() * (CONFIG.width - 60) + 30;
       powerUps.push(new SpiceCloud(rx, -40));
     }
@@ -4514,7 +4595,7 @@ function handleWaveSpawning(dt) {
 
   // Trench Wall Turrets Spawning (Level 11)
   if (lvlData.trenchWalls && gameActive && !gamePaused) {
-    if (Math.random() < 0.008) {
+    if (Math.random() < frameChance(0.008, m)) {
       const side = Math.random() > 0.5 ? 'left' : 'right';
       const rx = side === 'left' ? 176 : 600;
       wallTurrets.push(new WallTurret(rx, -40, side));
@@ -4532,7 +4613,7 @@ function handleWaveSpawning(dt) {
     for (let i = 0; i < asteroids.length; i++) {
       if (asteroids[i] instanceof Monolith) monolithCount++;
     }
-    if (monolithCount < 2 && Math.random() < 0.006) {
+    if (monolithCount < 2 && Math.random() < frameChance(0.006, m)) {
       const rx = Math.random() * (CONFIG.width - 210) + 80;
       asteroids.push(new Monolith(rx, -120));
     }
@@ -4570,7 +4651,8 @@ function triggerLevelClear() {
   if (bossRushMode) {
     bossRushIndex++;
     if (bossRushIndex >= BOSS_RUSH_SEQUENCE.length) {
-      if (window.Achievements) Achievements.notify('boss_rush_completed', {});
+      // Cheat-assisted (tainted) gauntlets don't earn GLADIATOR.
+      if (window.Achievements && !runTainted) Achievements.notify('boss_rush_completed', {});
       // Quick beat before showing the game-over panel so the level-clear
       // chime gets to play out.
       setTimeout(() => showGameOverScreen(), 1500);
@@ -4823,10 +4905,22 @@ function maybeShowPauseHint() {
   setTimeout(markSeen, 4000);
 }
 
+// Level data uses two naming schemes for bosses: campaign / Boss Rush say
+// 'dreadnought' / 'cyber_commander', endless sectors use the Enemy type
+// names directly. Both resolve to the Enemy constructor's type here.
+const BOSS_ENEMY_TYPES = {
+  dreadnought: 'boss', boss: 'boss',
+  cyber_commander: 'boss2', boss2: 'boss2',
+  sandworm: 'sandworm',
+  unicron: 'unicron'
+};
+
 function spawnCampaignForces(lvlData) {
   if (lvlData.bossType) {
     // Spawn designated sector boss Cruiser
-    enemies.push(new Enemy(CONFIG.width / 2 - 80, -120, lvlData.bossType === 'sandworm' ? 'sandworm' : lvlData.bossType === 'cyber_commander' ? 'boss2' : 'boss'));
+    const boss = new Enemy(0, -120, BOSS_ENEMY_TYPES[lvlData.bossType] || 'boss');
+    boss.x = CONFIG.width / 2 - boss.width / 2;
+    enemies.push(boss);
   } 
   else if (lvlData.enemyGrid) {
     const grid = lvlData.enemyGrid;
@@ -4846,8 +4940,6 @@ function spawnCampaignForces(lvlData) {
           type = 'heatSeeker';
         } else if (grid.swarmers && r === 0) {
           type = 'swarmer';
-        } else if (grid.kamikazes) {
-          type = 'kamikaze';
         } else if (grid.lightCycles && Math.random() < 0.38) {
           type = 'lightCycle';
         } else if (grid.shieldBlockers && Math.random() < 0.28) {
@@ -4856,6 +4948,12 @@ function spawnCampaignForces(lvlData) {
           type = 'sniper';
         } else if (grid.sentries && r === 0) {
           type = 'sentry';
+        } else if (grid.kamikazes && (!grid.scouts || Math.random() < 0.4)) {
+          // Kamikazes used to be an unconditional catch-all above the
+          // specialty types, so on any kamikaze grid light cycles, shield
+          // blockers, snipers, sentries and scouts never spawned. Now they
+          // fill every slot only on kamikaze-only grids (scouts: false).
+          type = 'kamikaze';
         }
 
         enemies.push(new Enemy(x, y - 250, type, c * 0.45));
@@ -4891,7 +4989,7 @@ function updateGame(dt) {
 
   // trauma decay
   if (traumaLevel > 0) {
-    traumaLevel -= 0.04;
+    traumaLevel -= 0.04 * frameMult(dt); // 0.04 per 60 Hz frame
     if (traumaLevel < 0) traumaLevel = 0;
   }
 
@@ -4969,7 +5067,7 @@ function updateGame(dt) {
   // Update Homing Missiles
   for (let i = homingMissiles.length - 1; i >= 0; i--) {
     const missile = homingMissiles[i];
-    missile.update();
+    missile.update(dt);
     if (missile.isOutOfBounds()) homingMissiles.splice(i, 1);
   }
 
@@ -5005,7 +5103,7 @@ function updateGame(dt) {
   // Update Nanotech scrap drops
   for (let i = scrapItems.length - 1; i >= 0; i--) {
     const scrap = scrapItems[i];
-    scrap.update();
+    scrap.update(dt);
     if (scrap.y > CONFIG.height + 40) {
       scrapItems.splice(i, 1);
     }
@@ -5081,7 +5179,8 @@ function updateGame(dt) {
       
       // Update light cycle trail
       if (!enemy.trailTimer) enemy.trailTimer = 0;
-      enemy.trailTimer += dt * mult;
+      // EMP-stunned cycles stop laying trail (existing segments still burn).
+      if (!(enemy.stunTimer > 0)) enemy.trailTimer += dt * mult;
       if (enemy.trailTimer >= 100) {
         if (!enemy.trail) enemy.trail = [];
         enemy.trail.push({
@@ -5131,7 +5230,9 @@ function updateGame(dt) {
     if (enemy.type === 'sentry') {
       let mult = bulletTimeActive ? 0.4 : 1.0;
       
-      if (player && gameActive && !gamePaused) {
+      // Stunned sentries hold fire — Enemy.update's stun gate doesn't cover
+      // this block, so an EMP'd turret used to keep firing every 180 ms.
+      if (player && gameActive && !gamePaused && !(enemy.stunTimer > 0)) {
         const sx = enemy.x + enemy.width / 2;
         const sy = enemy.y + enemy.height / 2;
         const px = player.x + player.width / 2;
@@ -5186,14 +5287,14 @@ function updateGame(dt) {
   }
   for (let i = floatingTexts.length - 1; i >= 0; i--) {
     const txt = floatingTexts[i];
-    txt.update();
+    txt.update(dt);
     if (txt.alpha <= 0) floatingTexts.splice(i, 1);
   }
 
   // Update Power-ups
   for (let i = powerUps.length - 1; i >= 0; i--) {
     const pup = powerUps[i];
-    pup.update();
+    pup.update(dt);
     if (pup.y > CONFIG.height + 40) powerUps.splice(i, 1);
   }
 
@@ -5215,7 +5316,10 @@ function updateGame(dt) {
   // Check Collisions
   if (gameActive) {
     handleCollisions();
-    handleWaveSpawning(dt);
+    // Re-check: a fatal hit in handleCollisions clears gameActive. Without
+    // this, killing the last asteroid by ramming it also passed the
+    // level-clear check, opening the hangar and game-over screens together.
+    if (gameActive) handleWaveSpawning(dt);
   }
 }
 
@@ -5238,6 +5342,7 @@ function gameTick(timestamp) {
   // (shootTimer, chargeTimer, dsLaserTimer, activePowerUps[*]) all at once.
   // 50ms covers ~3 dropped frames at 60Hz, which is more than enough headroom.
   const dt = Math.min(rawDt, 50);
+  renderFrameMult = frameMult(dt);
 
   if (gameActive && !gamePaused) {
     updateGame(dt);
@@ -5258,8 +5363,8 @@ function startGame() {
   score = 0;
   currentLevel = 1;
   scrapCredits = 0;
-  maxHealth = 100;
-  health = 100;
+  maxHealth = getBaseMaxHealth();
+  health = maxHealth;
 
   // Fresh run: clear the cheat-taint flag, then taint immediately if god
   // mode (invincibility) is enabled — that's an unfair scoring advantage,
@@ -5283,7 +5388,14 @@ function startGame() {
   // Reset per-run achievement scratch state. Cross-run counters (totals,
   // skinsTried, unlocked set) survive untouched — only the per-run
   // upgrade-types set and damage / scrap counters get cleared.
-  if (window.Achievements) Achievements.startRun(selectedDifficulty);
+  if (window.Achievements) {
+    Achievements.startRun(selectedDifficulty);
+    // Flying a skin counts as trying it. The default Cyber Cyan is pre-
+    // selected on load, so without this it only counted if the player
+    // re-clicked the already-active button — Art Collector was unreachable
+    // for anyone who never did.
+    Achievements.notify('skin_selected', { skin: selectedSkin });
+  }
   if (window.Stats) Stats.notify('run_started', { skin: selectedSkin });
 
   // Wipe any lingering combo from a previous run so the new run starts at ×1.
@@ -5571,11 +5683,64 @@ function updateHud(dt) {
    ---------------------------------------------------- */
 
 /* ----------------------------------------------------
+   RUN ENTRY POINTS (menu buttons + RESTART)
+   ---------------------------------------------------- */
+function startCampaignRun() {
+  // Clean handoff: any prior mode (daily / boss rush) is cleared so the
+  // next INITIATE GAME is a vanilla campaign.
+  dailyMode = false;
+  dailyDate = null;
+  deactivateDailySeed();
+  bossRushMode = false;
+  bossRushIndex = 0;
+  startGame();
+}
+
+function startDailyRun() {
+  // Daily Challenge: seed Math.random with today's UTC date so every
+  // pilot today faces the same spawn timings, asteroid drops, etc.
+  // Difficulty is locked to Hero for fairness.
+  dailyMode = true;
+  dailyDate = todayDateUTC();
+  activateDailySeed(dailyDate);
+  bossRushMode = false;
+  bossRushIndex = 0;
+  selectedDifficulty = 'hero';
+  document.querySelectorAll('.diff-btn').forEach(b => {
+    b.classList.toggle('active', b.getAttribute('data-diff') === 'hero');
+  });
+  if (window.Achievements) Achievements.notify('daily_started', { date: dailyDate });
+  startGame();
+}
+
+function startBossRushRun() {
+  // Boss Rush: 4 bosses back-to-back, no shop, no continues. Other modes
+  // get cleared so this is a pure gauntlet.
+  bossRushMode = true;
+  bossRushIndex = 0;
+  dailyMode = false;
+  dailyDate = null;
+  deactivateDailySeed();
+  startGame();
+}
+
+/* ----------------------------------------------------
    LEADERBOARD STORAGE HANDLERS
    ---------------------------------------------------- */
 function getLeaderboard() {
-  let board = localStorage.getItem('neon_striker_high_scores');
-  if (!board) {
+  let board = null;
+  try {
+    const raw = localStorage.getItem('neon_striker_high_scores');
+    if (raw) board = JSON.parse(raw);
+  } catch (e) {
+    board = null;
+  }
+  if (Array.isArray(board)) {
+    // Drop malformed rows — including the score:null entries the old
+    // HatchingPod NaN-score bug wrote (JSON.stringify turns NaN into null).
+    board = board.filter(r => r && typeof r.name === 'string' && Number.isFinite(r.score));
+  }
+  if (!Array.isArray(board) || board.length === 0) {
     board = [
       { name: 'CPU', score: 85000 },
       { name: 'DM2', score: 62000 },
@@ -5583,9 +5748,9 @@ function getLeaderboard() {
       { name: 'ADA', score: 35000 },
       { name: 'SYN', score: 20000 }
     ];
-    localStorage.setItem('neon_striker_high_scores', JSON.stringify(board));
-  } else {
-    board = JSON.parse(board);
+    try {
+      localStorage.setItem('neon_striker_high_scores', JSON.stringify(board));
+    } catch (e) { /* storage blocked — the in-memory defaults still work */ }
   }
   return board.sort((a, b) => b.score - a.score);
 }
@@ -5630,7 +5795,13 @@ function setLeaderboardScope(scope) {
   updateLeaderboardUI();
 }
 
+// Bumped per updateLeaderboardUI call; an await that resolves after a newer
+// call started (fast Today/All-Time tab switching) bails instead of drawing
+// its rows under the wrong tab.
+let leaderboardRequestId = 0;
+
 async function updateLeaderboardUI() {
+  const requestId = ++leaderboardRequestId;
   const body = document.getElementById('leaderboard-body');
   body.innerHTML = '';
 
@@ -5662,6 +5833,10 @@ async function updateLeaderboardUI() {
     }
     try {
       const dailyScores = await window.getDailyHighScores(todayDateUTC());
+      if (requestId !== leaderboardRequestId) return;
+      // getDailyHighScores swallows its own errors and returns null, so
+      // surface that as the unreachable state rather than "no runs yet".
+      if (dailyScores === null) throw new Error('daily board fetch failed');
       body.innerHTML = '';
       if (dailyScores && dailyScores.length > 0) {
         dailyScores.forEach((record, index) => {
@@ -5679,6 +5854,7 @@ async function updateLeaderboardUI() {
         body.append(tr);
       }
     } catch (e) {
+      if (requestId !== leaderboardRequestId) return;
       console.warn('Failed to load daily scores:', e);
       // Replace the loading shimmer with a real error state — previously a
       // failed fetch left '🌙 LOADING TODAY'S RUNS...' blinking forever.
@@ -5700,6 +5876,7 @@ async function updateLeaderboardUI() {
   if (window.firebaseEnabled) {
     try {
       const globalScores = await window.getGlobalHighScores();
+      if (requestId !== leaderboardRequestId) return;
       if (globalScores && globalScores.length > 0) {
         body.innerHTML = '';
         globalScores.forEach((record, index) => {
@@ -5712,6 +5889,7 @@ async function updateLeaderboardUI() {
         return;
       }
     } catch (e) {
+      if (requestId !== leaderboardRequestId) return;
       console.warn("Failed to load Firebase scores, falling back to browser archives:", e);
     }
   }
@@ -5839,13 +6017,15 @@ window.addEventListener('load', () => {
   applyPersistedSettings(loadPersistedSettings());
 
   window.addEventListener('keydown', e => {
-    if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
-      e.preventDefault();
-    }
     // Don't intercept M / P while the cheat-code input is focused — typing
     // 'matrix' or any code containing those letters would otherwise mute or
     // pause the game underneath the modal.
     const typingInForm = e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA');
+    // Block page scroll on game keys, but not inside text fields — there
+    // Space and the arrows must type a space / move the caret.
+    if (!typingInForm && ['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
+      e.preventDefault();
+    }
     // Record a one-shot edge only on the initial press, not on key-repeat,
     // so a held Shift on Matrix levels doesn't auto-trigger EMP every frame.
     if (!keys[e.code]) {
@@ -5872,42 +6052,9 @@ window.addEventListener('load', () => {
   });
 
   // UI Button listener hooks
-  document.getElementById('btn-start').addEventListener('click', () => {
-    // Clean handoff: any prior mode (daily / boss rush) is cleared so the
-    // next INITIATE GAME is a vanilla campaign.
-    dailyMode = false;
-    dailyDate = null;
-    deactivateDailySeed();
-    bossRushMode = false;
-    bossRushIndex = 0;
-    startGame();
-  });
-
-  document.getElementById('btn-daily').addEventListener('click', () => {
-    // Daily Challenge: seed Math.random with today's UTC date so every
-    // pilot today faces the same spawn timings, asteroid drops, etc.
-    // Difficulty is locked to Hero for fairness.
-    dailyMode = true;
-    dailyDate = todayDateUTC();
-    activateDailySeed(dailyDate);
-    selectedDifficulty = 'hero';
-    document.querySelectorAll('.diff-btn').forEach(b => {
-      b.classList.toggle('active', b.getAttribute('data-diff') === 'hero');
-    });
-    if (window.Achievements) Achievements.notify('daily_started', { date: dailyDate });
-    startGame();
-  });
-
-  document.getElementById('btn-bossrush').addEventListener('click', () => {
-    // Boss Rush: 4 bosses back-to-back, no shop, no continues. Other modes
-    // get cleared so this is a pure gauntlet.
-    bossRushMode = true;
-    bossRushIndex = 0;
-    dailyMode = false;
-    dailyDate = null;
-    deactivateDailySeed();
-    startGame();
-  });
+  document.getElementById('btn-start').addEventListener('click', startCampaignRun);
+  document.getElementById('btn-daily').addEventListener('click', startDailyRun);
+  document.getElementById('btn-bossrush').addEventListener('click', startBossRushRun);
 
   document.getElementById('btn-settings').addEventListener('click', () => {
     document.getElementById('start-menu').classList.add('hidden');
@@ -5964,7 +6111,12 @@ window.addEventListener('load', () => {
   }
 
   document.getElementById('btn-restart').addEventListener('click', () => {
-    startGame();
+    // Replay through the same entry point the finished run used, so Boss
+    // Rush restarts at boss 1 and a Daily retry is re-seeded rather than
+    // playing unseeded spawns that still post to the daily board.
+    if (bossRushMode) startBossRushRun();
+    else if (dailyMode) startDailyRun();
+    else startCampaignRun();
   });
 
   document.getElementById('btn-continue').addEventListener('click', () => {
@@ -6083,7 +6235,7 @@ window.addEventListener('load', () => {
       }
       
       // Permanently adjust ship shielding pools
-      maxHealth = 100 + (playerUpgrades.shield - 1) * 20;
+      maxHealth = getBaseMaxHealth() + (playerUpgrades.shield - 1) * 20;
       health = maxHealth; // Heal completely
       
       GameAudio.playPowerUpSound();

@@ -19,25 +19,29 @@ class PlayerShip {
   }
 
   update(dt) {
+    const m = frameMult(dt);
     // Process input keyboard movements
+    const accel = CONFIG.playerSpeed * 0.15 * m;
     if (keys['ArrowLeft'] || keys['KeyA']) {
-      this.vx -= CONFIG.playerSpeed * 0.15;
+      this.vx -= accel;
     }
     if (keys['ArrowRight'] || keys['KeyD']) {
-      this.vx += CONFIG.playerSpeed * 0.15;
+      this.vx += accel;
     }
     if (keys['ArrowUp'] || keys['KeyW']) {
-      this.vy -= CONFIG.playerSpeed * 0.15;
+      this.vy -= accel;
     }
     if (keys['ArrowDown'] || keys['KeyS']) {
-      this.vy += CONFIG.playerSpeed * 0.15;
+      this.vy += accel;
     }
 
-    // Apply smooth inertia friction
-    this.vx *= CONFIG.playerFriction;
-    this.x += this.vx;
-    this.vy *= CONFIG.playerFriction;
-    this.y += this.vy;
+    // Apply smooth inertia friction (exponentiated so the decay per second
+    // is the same at any refresh rate).
+    const friction = Math.pow(CONFIG.playerFriction, m);
+    this.vx *= friction;
+    this.x += this.vx * m;
+    this.vy *= friction;
+    this.y += this.vy * m;
 
     // Apply level specific physical constraint borders
     let minX = 15;
@@ -82,7 +86,7 @@ class PlayerShip {
       else if (selectedDifficulty === 'elite') pullForce = 0.22;
       
       const pullDir = player.x + player.width / 2 < 400 ? 1 : -1;
-      this.vx += pullDir * pullForce;
+      this.vx += pullDir * pullForce * m;
     }
 
     // Shooting cannon fires
@@ -100,8 +104,9 @@ class PlayerShip {
       }
     }
 
+    // Counted in 60 Hz frames, so 60 = 1 s at any refresh rate.
     if (this.invulnFrames > 0) {
-      this.invulnFrames--;
+      this.invulnFrames -= m;
     }
   }
 
@@ -395,7 +400,8 @@ class HomingMissile {
     this.trailTimer = 0;
   }
 
-  update() {
+  update(dt) {
+    const m = frameMult(dt);
     // Seek Target Vector calculation
     if (this.target && this.target.health > 0 && enemies.includes(this.target)) {
       const tx = this.target.x + this.target.width / 2;
@@ -409,9 +415,11 @@ class HomingMissile {
         const targetVx = (dx / dist) * this.speed;
         const targetVy = (dy / dist) * this.speed;
         
-        // Steering factor (curves the rocket trajectory smoothly)
-        this.vx += (targetVx - this.vx) * 0.15;
-        this.vy += (targetVy - this.vy) * 0.15;
+        // Steering factor (curves the rocket trajectory smoothly) — 0.15
+        // per 60 Hz frame, exponentiated so turn rate is refresh-independent.
+        const steer = 1 - Math.pow(0.85, m);
+        this.vx += (targetVx - this.vx) * steer;
+        this.vy += (targetVy - this.vy) * steer;
       }
     } else {
       // Find new target if current is destroyed. Squared distance only —
@@ -433,12 +441,13 @@ class HomingMissile {
       if (closest) this.target = closest;
     }
 
-    this.x += this.vx;
-    this.y += this.vy;
+    this.x += this.vx * m;
+    this.y += this.vy * m;
 
-    // Rocket particles trail
-    this.trailTimer++;
-    if (this.trailTimer % 2 === 0) {
+    // Rocket particles trail — one puff per two 60 Hz frames.
+    this.trailTimer += m;
+    if (this.trailTimer >= 2) {
+      this.trailTimer -= 2;
       particles.push(new Particle(this.x, this.y, '#ffea00'));
     }
   }
@@ -806,38 +815,40 @@ class Enemy {
       return;
     }
 
-    this.phase += 0.035;
+    // Movement below is tuned per 60 Hz frame; m rescales it to real time.
+    const m = frameMult(dt);
+    this.phase += 0.035 * m;
 
     // Movement Behavior AI based on type
     if (this.type === 'scout') {
-      this.y += this.speed * 0.8;
-      this.x += Math.sin(this.phase) * 1.5;
+      this.y += this.speed * 0.8 * m;
+      this.x += Math.sin(this.phase) * 1.5 * m;
     } 
     else if (this.type === 'swarmer') {
-      this.y += this.speed * 0.55;
-      this.x += Math.sin(this.phase * 0.5) * 0.6;
+      this.y += this.speed * 0.55 * m;
+      this.x += Math.sin(this.phase * 0.5) * 0.6 * m;
     } 
     else if (this.type === 'kamikaze') {
-      this.y += this.speed;
+      this.y += this.speed * m;
       if (player && this.y < player.y - 120) {
         const targetDx = player.x + player.width / 2 - this.x;
-        this.x += Math.sign(targetDx) * 1.4;
+        this.x += Math.sign(targetDx) * 1.4 * m;
       }
     } 
     else if (this.type === 'phase') {
       // Slowly drift down, occasionally fading out of visibility
-      this.y += this.speed * 0.7;
-      this.x += Math.sin(this.phase * 0.8) * 1.8;
+      this.y += this.speed * 0.7 * m;
+      this.x += Math.sin(this.phase * 0.8) * 1.8 * m;
       this.alpha = 0.2 + Math.abs(Math.sin(this.phase * 2)) * 0.8;
     } 
     else if (this.type === 'heatSeeker') {
       // Slowly swoops, homing coordinates
-      this.y += this.speed * 0.6;
-      this.x += Math.sin(this.phase) * 1.2;
+      this.y += this.speed * 0.6 * m;
+      this.x += Math.sin(this.phase) * 1.2 * m;
     } 
     else if (this.type === 'boss' || this.type === 'boss2') {
       // Horizontal hover loops
-      this.x += this.speed * this.bossDirection;
+      this.x += this.speed * this.bossDirection * m;
       if (this.x < 40) {
         this.x = 40;
         this.bossDirection = 1;
@@ -850,7 +861,7 @@ class Enemy {
     } 
     else if (this.type === 'sandworm') {
       // Serpentine wavy flying maneuvers across canvas!
-      this.serpentinePhase += 0.02;
+      this.serpentinePhase += 0.02 * m;
       this.x = CONFIG.width / 2 - this.width / 2 + Math.sin(this.serpentinePhase * 2) * (CONFIG.width / 2 - 80);
       this.y = 120 + Math.cos(this.serpentinePhase) * 60;
       
@@ -858,15 +869,15 @@ class Enemy {
       this.shieldActive = Math.sin(this.serpentinePhase * 4) > 0.4;
     } 
     else if (this.type === 'shieldBlocker') {
-      this.y += this.speed * 0.7;
+      this.y += this.speed * 0.7 * m;
     } 
     else if (this.type === 'sniper') {
       if (this.y < 120) {
-        this.y += this.speed * 1.2;
+        this.y += this.speed * 1.2 * m;
       }
       if (player) {
         const targetDx = player.x + player.width / 2 - (this.x + this.width / 2);
-        this.x += Math.sign(targetDx) * 0.9;
+        this.x += Math.sign(targetDx) * 0.9 * m;
       }
       let mult = bulletTimeActive ? 0.4 : 1.0;
       this.chargeTimer += dt * mult;
@@ -877,8 +888,8 @@ class Enemy {
     } 
     else if (this.type === 'lightCycle') {
       let mult = bulletTimeActive ? 0.4 : 1.0;
-      this.y += this.speed * 0.5 * mult;
-      this.x += this.speed * this.directionX * 1.5 * mult;
+      this.y += this.speed * 0.5 * mult * m;
+      this.x += this.speed * this.directionX * 1.5 * mult * m;
       if (this.x < 15) {
         this.x = 15;
         this.directionX = 1;
@@ -890,7 +901,7 @@ class Enemy {
     } 
     else if (this.type === 'sentry') {
       let mult = bulletTimeActive ? 0.4 : 1.0;
-      const sweepSpeed = 0.008 * mult;
+      const sweepSpeed = 0.008 * mult * m;
       this.angle += sweepSpeed * this.sweepDirection;
       if (this.angle > (Math.PI * 3) / 4) {
         this.angle = (Math.PI * 3) / 4;
@@ -903,7 +914,7 @@ class Enemy {
     } 
     else if (this.type === 'unicron') {
       let mult = bulletTimeActive ? 0.4 : 1.0;
-      this.x += this.speed * this.bossDirection * mult;
+      this.x += this.speed * this.bossDirection * mult * m;
       if (this.x < 40) {
         this.x = 40;
         this.bossDirection = 1;
@@ -929,7 +940,7 @@ class Enemy {
         const dy = my - py;
         const dist = Math.sqrt(dx * dx + dy * dy);
         if (dist > 20) {
-          const pullStrength = 0.08 * mult;
+          const pullStrength = 0.08 * mult * m;
           player.vx += (dx / dist) * pullStrength;
           if (player.y > 220) {
             player.y += (dy / dist) * pullStrength * 1.5;
@@ -946,7 +957,9 @@ class Enemy {
         
         let baseTimer = 2200 + Math.random() * 2500;
         if (this.type === 'boss' || this.type === 'boss2') {
-          baseTimer = 1400 - currentLevel * 80;
+          // Floor keeps late campaign / endless bosses from hitting <=0 and
+          // firing a full volley every frame (1400 - 18*80 = -40).
+          baseTimer = Math.max(600, 1400 - currentLevel * 80);
         } else if (this.type === 'sandworm') {
           baseTimer = 800; // Super fast firing rate
         }
@@ -1411,12 +1424,19 @@ class HatchingPod {
     this.color = '#39ff14'; // Pulsing green eggs
     this.health = 2;
     this.phase = Math.random() * Math.PI;
+    // destroyEnemy adds scoreValue unconditionally and the pierce/EMP dedup
+    // keys on id — without these a pod kill turned the score into NaN and
+    // every pod shared the hitEnemies["undefined"] slot.
+    this.scoreValue = 150;
+    this.isBoss = false;
+    this.id = ++nextEntityId;
   }
 
-  update() {
-    this.x += this.vx;
-    this.y += this.vy;
-    this.phase += 0.05;
+  update(dt) {
+    const m = frameMult(dt);
+    this.x += this.vx * m;
+    this.y += this.vy * m;
+    this.phase += 0.05 * m;
   }
 
   draw() {
@@ -1468,7 +1488,8 @@ class ScrapCredit {
     this.phase = Math.random() * Math.PI;
   }
 
-  update() {
+  update(dt) {
+    const m = frameMult(dt);
     // Magnetism pull to Player ship
     if (player) {
       const px = player.x + player.width / 2;
@@ -1483,14 +1504,14 @@ class ScrapCredit {
         this.vy += (dy / dist) * magnetSpeed - this.vy;
       } else {
         // Slow float
-        this.vx *= 0.95;
+        this.vx *= Math.pow(0.95, m);
         this.vy = 1.5;
       }
     }
 
-    this.x += this.vx;
-    this.y += this.vy;
-    this.phase += 0.08;
+    this.x += this.vx * m;
+    this.y += this.vy * m;
+    this.phase += 0.08 * m;
   }
 
   draw() {
@@ -1523,10 +1544,11 @@ class SpiceCloud {
     this.phase = Math.random() * Math.PI;
   }
 
-  update() {
-    this.x += this.vx;
-    this.y += this.vy;
-    this.phase += 0.03;
+  update(dt) {
+    const m = frameMult(dt);
+    this.x += this.vx * m;
+    this.y += this.vy * m;
+    this.phase += 0.03 * m;
   }
 
   draw() {
@@ -1554,8 +1576,8 @@ class Monolith {
     this.color = '#000'; // Completely Pitch Black!
   }
 
-  update() {
-    this.y += this.vy;
+  update(dt) {
+    this.y += this.vy * frameMult(dt);
   }
 
   draw() {
@@ -1590,7 +1612,7 @@ class WallTurret {
   }
 
   update(dt) {
-    this.y += 1.8; // Grid scroll speed match
+    this.y += 1.8 * frameMult(dt); // Grid scroll speed match
     
     if (gameActive && !gamePaused) {
       this.shootTimer -= dt;
@@ -1670,9 +1692,10 @@ class PowerUp {
     else if (type === 'BOMB') { this.color = '#8b00ff'; this.label = '💣'; }
   }
 
-  update() {
-    this.y += this.speed;
-    this.phase += 0.05;
+  update(dt) {
+    const m = frameMult(dt);
+    this.y += this.speed * m;
+    this.phase += 0.05 * m;
   }
 
   draw() {
@@ -1782,6 +1805,7 @@ class Debris {
   update(dt) {
     let mult = 1.0;
     if (bulletTimeActive) mult = 0.4;
+    mult *= frameMult(dt);
     
     this.x += this.vx * mult;
     this.y += this.vy * mult;
@@ -1841,7 +1865,7 @@ class WingmanDrone {
     
     let rotationSpeed = 0.04;
     if (bulletTimeActive) rotationSpeed *= 0.4;
-    this.angle += rotationSpeed;
+    this.angle += rotationSpeed * frameMult(dt);
     
     const px = player.x + player.width / 2;
     const py = player.y + player.height / 2;
@@ -1928,7 +1952,7 @@ class EMPShockwave {
     let mult = 1.0;
     if (bulletTimeActive) mult = 0.4;
     
-    this.radius += this.speed * mult;
+    this.radius += this.speed * mult * frameMult(dt);
     
     // Clear active hostile energy bolts inside expanding ring
     for (let i = enemyLasers.length - 1; i >= 0; i--) {
@@ -2003,9 +2027,10 @@ class FloatingText {
     this.fontSize = 13;
   }
 
-  update() {
-    this.y += this.vy;
-    this.alpha -= this.decay;
+  update(dt) {
+    const m = frameMult(dt);
+    this.y += this.vy * m;
+    this.alpha -= this.decay * m;
   }
 
   draw() {

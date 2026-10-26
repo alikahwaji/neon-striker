@@ -52,8 +52,16 @@ const Stats = (function () {
       if (!raw) return;
       const parsed = JSON.parse(raw);
       if (parsed && typeof parsed === 'object') {
+        // Only accept values whose type matches the default — a stored
+        // skinUsage:null would crash run_started (blocking every Start), and
+        // a string count would turn ++ into string concatenation.
         Object.keys(data).forEach(k => {
-          if (k in parsed) data[k] = parsed[k];
+          if (!(k in parsed)) return;
+          const v = parsed[k];
+          const def = data[k];
+          if (typeof def === 'number' && Number.isFinite(v)) data[k] = v;
+          else if (def && typeof def === 'object' && v && typeof v === 'object' && !Array.isArray(v)) data[k] = v;
+          else if (typeof def === typeof v && typeof def !== 'object') data[k] = v;
         });
       }
     } catch (e) {
@@ -87,8 +95,9 @@ const Stats = (function () {
     } else if (eventName === 'level_completed') {
       const lv = (payload && payload.level) || 0;
       if (lv > data.longestRunLevel) data.longestRunLevel = lv;
-      // Beating Level 20 = full campaign completion.
-      if (lv >= 20) data.runsCompleted++;
+      // Beating Level 20 = full campaign completion. Exactly 20: endless
+      // sectors 21+ also report level_completed and used to count again.
+      if (lv === 20) data.runsCompleted++;
       dirty = true;
       persist();
     }
