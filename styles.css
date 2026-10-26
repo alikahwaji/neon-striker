@@ -583,6 +583,14 @@ body {
 }
 
 .pulsing-text {
+  /* Fixed glow (midway between the old animation's two states) + an
+     opacity pulse. The old animation interpolated text-shadow every frame,
+     which forced a repaint of the text AND of the blurred (backdrop-filter)
+     menu panel behind it — measured in Chrome at 10-16 fps on both the menu
+     and in gameplay (hidden panels keep animating under the game), 60-61
+     fps with this opacity pulse, which the compositor runs without
+     repainting. */
+  text-shadow: 0 0 15px var(--neon-magenta), 0 0 30px var(--neon-magenta), 0 0 30px var(--neon-purple);
   animation: pulse-glow 1.5s infinite alternate;
 }
 
@@ -591,12 +599,8 @@ body {
 }
 
 @keyframes pulse-glow {
-  0% {
-    text-shadow: 0 0 10px var(--neon-magenta), 0 0 20px var(--neon-magenta);
-  }
-  100% {
-    text-shadow: 0 0 20px var(--neon-magenta), 0 0 40px var(--neon-magenta), 0 0 60px var(--neon-purple);
-  }
+  from { opacity: 1; }
+  to   { opacity: 0.78; }
 }
 
 @keyframes blink-anim {
