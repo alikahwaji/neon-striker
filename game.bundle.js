@@ -6347,6 +6347,35 @@ function startBossRushRun() {
 /* ----------------------------------------------------
    LEADERBOARD STORAGE HANDLERS
    ---------------------------------------------------- */
+// Leaderboards show each pilot once, with their best score. Every submit
+// appends a new row (local board, and Firestore's append-only collections),
+// so without this a pilot with several good runs filled several of the 8
+// slots ("ALI" held 3 of the live All-Time top 8). Names are compared
+// trimmed + case-insensitively; difficulty tags ([CADET] / [ELITE]) are
+// part of the name, so each difficulty keeps its own entry.
+const LEADERBOARD_SIZE = 8;
+
+function pilotKey(name) {
+  return String(name == null ? '' : name).trim().toUpperCase();
+}
+
+function bestPerPilot(rows, limit = LEADERBOARD_SIZE) {
+  const sorted = (rows || [])
+    .filter(r => r && Number.isFinite(Number(r.score)))
+    .slice()
+    .sort((a, b) => Number(b.score) - Number(a.score));
+  const seen = new Set();
+  const out = [];
+  for (const r of sorted) {
+    const key = pilotKey(r.name);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(r);
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
 function getLeaderboard() {
   let board = null;
   try {
@@ -6359,6 +6388,8 @@ function getLeaderboard() {
     // Drop malformed rows — including the score:null entries the old
     // HatchingPod NaN-score bug wrote (JSON.stringify turns NaN into null).
     board = board.filter(r => r && typeof r.name === 'string' && Number.isFinite(r.score));
+    // Collapse duplicates saved before boards were deduplicated.
+    board = bestPerPilot(board);
   }
   if (!Array.isArray(board) || board.length === 0) {
     board = [
@@ -6386,8 +6417,11 @@ function saveHighScore(name, scoreVal) {
   // Always save locally first as double-redundancy safety net
   const board = getLeaderboard();
   board.push({ name: taggedName.toUpperCase().slice(0, 18), score: scoreVal });
-  const sorted = board.sort((a, b) => b.score - a.score).slice(0, 8);
-  localStorage.setItem('neon_striker_high_scores', JSON.stringify(sorted));
+  // One row per pilot: a lower score than their existing best is dropped.
+  const best = bestPerPilot(board);
+  try {
+    localStorage.setItem('neon_striker_high_scores', JSON.stringify(best));
+  } catch (e) { /* storage blocked */ }
 
   // If Firebase database is active, push the score to Firestore globally —
   // BUT withhold cheat-active runs (god mode / DEATH BLOSSOM). The local
@@ -6459,7 +6493,7 @@ async function updateLeaderboardUI() {
       if (dailyScores === null) throw new Error('daily board fetch failed');
       body.innerHTML = '';
       if (dailyScores && dailyScores.length > 0) {
-        dailyScores.forEach((record, index) => {
+        bestPerPilot(dailyScores).forEach((record, index) => {
           renderLeaderboardRow(body, index, `🌙 ${record.name}`, parseInt(record.score, 10) || 0);
         });
       } else {
@@ -6499,7 +6533,7 @@ async function updateLeaderboardUI() {
       if (requestId !== leaderboardRequestId) return;
       if (globalScores && globalScores.length > 0) {
         body.innerHTML = '';
-        globalScores.forEach((record, index) => {
+        bestPerPilot(globalScores).forEach((record, index) => {
           // Globe prefix marks scores fetched from the public Firestore.
           // Firestore writes are unauthenticated, so record.name is hostile
           // by default — render every field via textContent, never template
