@@ -2100,3 +2100,35 @@ html.touch-device .how-to-play,
 html.touch-device .pause-hint-toast {
   display: none !important;
 }
+
+/* "Rotate for a bigger view" banner (touch.js) — portrait phones only. */
+.rotate-hint {
+  display: none;
+}
+html.touch-portrait .rotate-hint {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: calc(100% - 2rem);
+  max-width: 420px;
+  margin: 0 auto 0.75rem;
+  padding: 0.5rem 0.5rem 0.5rem 0.9rem;
+  border: 1px solid var(--neon-cyan, #00f0ff);
+  border-radius: 6px;
+  background: rgba(0, 240, 255, 0.08);
+  color: #b8f6ff;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.85rem;
+}
+.rotate-hint-close {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 4px;
+  background: transparent;
+  color: #fff;
+  font-size: 0.9rem;
+  cursor: pointer;
+}

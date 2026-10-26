@@ -4924,9 +4924,33 @@ function enableTouchControls() {
   // the "P to pause" toast) in styles.css.
   document.documentElement.classList.add('touch-device');
   buildTouchControls();
+  buildRotateHint();
   updateTouchLayout();
   window.addEventListener('resize', updateTouchLayout);
   window.addEventListener('orientationchange', updateTouchLayout);
+}
+
+// Start-menu banner nudging portrait players to rotate: the 4:3 game is
+// ~1.8x larger in landscape. Only visible under html.touch-portrait (CSS);
+// dismissing it is remembered on this device.
+const ROTATE_HINT_KEY = 'neon_striker_rotate_hint_dismissed';
+
+function buildRotateHint() {
+  let dismissed = false;
+  try { dismissed = localStorage.getItem(ROTATE_HINT_KEY) === '1'; } catch (e) { /* storage blocked */ }
+  const menu = document.getElementById('start-menu');
+  if (dismissed || !menu || document.getElementById('rotate-hint')) return;
+
+  const hint = document.createElement('div');
+  hint.id = 'rotate-hint';
+  hint.className = 'rotate-hint';
+  hint.innerHTML = '<span>⟳ Rotate your phone for a bigger view</span>' +
+    '<button type="button" class="rotate-hint-close" aria-label="Dismiss">✕</button>';
+  hint.querySelector('button').addEventListener('click', () => {
+    hint.remove();
+    try { localStorage.setItem(ROTATE_HINT_KEY, '1'); } catch (e) { /* storage blocked */ }
+  });
+  menu.insertBefore(hint, menu.firstChild);
 }
 
 // Portrait phones: a 4:3 game box only fills ~1/3 of a tall screen, the
