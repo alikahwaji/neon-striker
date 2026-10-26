@@ -257,3 +257,47 @@ test('EMP screen shake respects Reduced Motion and the vibration toggle', () => 
   new T.EMPShockwave(100, 100);
   assert.equal(T.traumaLevel, 0, 'shook with Screen Vibration off');
 });
+
+test('leaderboards show each pilot once, with their best score', () => {
+  const { T } = loadGame();
+  // Shape of the live All-Time board that prompted this (ALI x3, DAN x2).
+  const rows = [
+    { name: '[CADET] DAN', score: 86000 }, { name: 'DAN', score: 54925 },
+    { name: 'ALI', score: 17700 }, { name: 'ali ', score: 17250 }, { name: 'ALI', score: 15000 },
+    { name: 'KAHWAJI', score: 14325 }, { name: 'DAN', score: 13575 }, { name: '[CADET] ALI', score: 11325 }
+  ];
+  const best = Array.from(T.bestPerPilot(rows), r => `${r.name}:${r.score}`);
+  assert.deepEqual(best, ['[CADET] DAN:86000', 'DAN:54925', 'ALI:17700', 'KAHWAJI:14325', '[CADET] ALI:11325']);
+});
+
+test('best-per-pilot keeps the highest even when rows arrive unsorted, and caps at 8', () => {
+  const { T } = loadGame();
+  const rows = [{ name: 'ACE', score: 10 }, { name: 'ACE', score: 900 }, { name: 'ACE', score: 50 }];
+  for (let i = 0; i < 12; i++) rows.push({ name: `P${i}`, score: 100 + i });
+  const best = Array.from(T.bestPerPilot(rows));
+  assert.equal(best.length, 8);
+  assert.equal(best[0].name, 'ACE');
+  assert.equal(best[0].score, 900);
+  assert.equal(best.filter(r => r.name === 'ACE').length, 1);
+  assert.ok(best.every((r, i) => i === 0 || best[i - 1].score >= r.score), 'not sorted');
+});
+
+test('saving a local score keeps one row per pilot', () => {
+  const { T, ctx } = loadGame();
+  T.setDiff('hero');
+  T.saveHighScore('ALI', 30000);
+  T.saveHighScore('ali', 90000);   // new best replaces the old row
+  T.saveHighScore('ALI', 40000);   // lower than best: dropped
+  const board = JSON.parse(ctx.localStorage.getItem('neon_striker_high_scores'));
+  const ali = board.filter(r => r.name === 'ALI');
+  assert.equal(ali.length, 1);
+  assert.equal(ali[0].score, 90000);
+});
+
+test('duplicates already saved in a browser are collapsed on load', () => {
+  const { T, ctx } = loadGame();
+  ctx.localStorage.setItem('neon_striker_high_scores', JSON.stringify([
+    { name: 'DAN', score: 500 }, { name: 'DAN', score: 900 }, { name: 'SYN', score: 100 }, { name: 'DAN', score: 700 }
+  ]));
+  assert.deepEqual(Array.from(T.getLeaderboard(), r => `${r.name}:${r.score}`), ['DAN:900', 'SYN:100']);
+});
