@@ -76,7 +76,8 @@ Any standard-mapping controller (Xbox, PlayStation, most USB pads) works — plu
 | **B / ○** or **Left Bumper** | EMP shockwave |
 | **Right Bumper** or **Left Trigger** | Bullet time (Matrix sector) |
 | **Start** | Pause / resume |
-| **D-pad / stick + A** (in menus) | Move between buttons / press the highlighted one |
+| **D-pad / stick + A** (in menus) | Move to the button in that direction / press the highlighted one |
+| **B / ○** (in menus) | Back (Settings, Leaderboard, Achievements) / Resume (pause screen) |
 
 Hits, BOMBs and EMPs rumble the controller (follows the **Screen Vibration** setting). Unplugging mid-fight auto-pauses.
 
