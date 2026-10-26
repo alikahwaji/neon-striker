@@ -80,6 +80,20 @@ Any standard-mapping controller (Xbox, PlayStation, most USB pads) works — plu
 
 Hits, BOMBs and EMPs rumble the controller (follows the **Screen Vibration** setting). Unplugging mid-fight auto-pauses.
 
+### 📱 Touch (phones & tablets)
+
+On-screen controls appear automatically on touch devices, only while you're flying (menus use normal taps):
+
+| Touch | Action |
+| :--- | :--- |
+| **Drag anywhere on the left half** | Floating thumbstick — appears under your thumb, analog like a controller stick |
+| **FIRE** (bottom right, hold) | Fire |
+| **EMP** | EMP shockwave — appears once the upgrade is bought, dims while recharging |
+| **⏱** (Matrix sector only) | Hold for bullet time |
+| **PAUSE** (HUD, top) | Pause / resume |
+
+Move and fire at the same time with two thumbs. Hits, BOMBs and EMPs buzz the phone where the browser supports vibration (Android Chrome), following **Screen Vibration**.
+
 ---
 
 ## 🛸 Retro Cheat Codes Console

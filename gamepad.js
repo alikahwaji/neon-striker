@@ -173,6 +173,8 @@ function padMenuActivate() {
 // setting (the game's one "vibration" switch). No-op on pads / browsers
 // without vibrationActuator.
 function padRumble(strong, weak, durationMs) {
+  // Phones get a matching buzz via the Vibration API (touch.js).
+  if (typeof touchHaptic === 'function') touchHaptic(durationMs * Math.max(strong, weak));
   if (!CONFIG.shakeEnabled || padIndex === null || !navigator.getGamepads) return;
   const pad = navigator.getGamepads()[padIndex];
   const act = pad && pad.vibrationActuator;

@@ -1847,3 +1847,115 @@ button.pad-focus {
   outline-offset: 3px;
   box-shadow: 0 0 18px rgba(255, 255, 255, 0.55), 0 0 6px currentColor !important;
 }
+
+/* ----------------------------------------------------
+   TOUCH CONTROLS (touch.js)
+   ----------------------------------------------------
+   Built only on touch devices and shown only during active gameplay.
+   z-index 2: above the canvas (1), under the HUD (3, pointer-events none
+   except its PAUSE button) and the overlay panels (5). Sizes are % of the
+   playfield so the controls scale with the 4:3 container. */
+.touch-controls {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  touch-action: none;          /* no scroll / pinch-zoom while flying */
+  /* Size container: the buttons below use cqh (% of the playfield height)
+     so they scale with the 4:3 game area, not the browser window — vmin
+     made FIRE a third of the playfield when the window was taller than it
+     (portrait phones, tablets, touch laptops). */
+  container-type: size;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.touch-stick-zone {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 55%;
+}
+
+/* Floating base, centred on the thumb's touch point (left / top set in
+   JS). Diameter 24% of the playfield height = 2x the JS stick radius. */
+.touch-stick-base {
+  position: absolute;
+  height: 24%;
+  min-height: 64px;
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  border: 2px solid rgba(0, 240, 255, 0.55);
+  background: radial-gradient(circle, rgba(0, 240, 255, 0.12) 0%, rgba(0, 240, 255, 0.04) 70%);
+  box-shadow: 0 0 14px rgba(0, 240, 255, 0.35);
+  pointer-events: none;
+}
+
+.touch-stick-knob {
+  position: absolute;
+  width: 44%;
+  height: 44%;
+  left: 28%;
+  top: 28%;
+  border-radius: 50%;
+  background: rgba(0, 240, 255, 0.45);
+  border: 2px solid #00f0ff;
+  box-shadow: 0 0 12px #00f0ff;
+}
+
+.touch-buttons {
+  position: absolute;
+  right: 3%;
+  bottom: 13%;                 /* clear the HUD's bottom strip */
+  display: flex;
+  align-items: flex-end;
+  gap: 3%;
+}
+
+.touch-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1;
+  height: 14cqh;
+  max-height: 110px;
+  min-height: 48px;
+  border-radius: 50%;
+  border: 2px solid var(--btn-color, #ff00aa);
+  color: var(--btn-color, #ff00aa);
+  background: rgba(4, 2, 10, 0.45);
+  box-shadow: 0 0 12px var(--btn-color, #ff00aa);
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 700;
+  font-size: clamp(0.65rem, 2.6cqh, 1rem);
+  letter-spacing: 0.08em;
+  opacity: 0.75;
+}
+
+.touch-fire {
+  --btn-color: #ff00aa;
+  height: 20cqh;
+  max-height: 150px;
+  min-height: 64px;
+}
+
+.touch-emp { --btn-color: #00f0ff; }
+.touch-bt  { --btn-color: #39ff14; font-size: clamp(0.9rem, 3.5cqh, 1.4rem); }
+
+.touch-btn.active {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.12);
+  transform: scale(0.94);
+}
+
+.touch-emp.cooldown {
+  opacity: 0.3;
+}
+
+/* Menu buttons: no double-tap-zoom delay or grey tap flash on mobile. */
+button {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}

@@ -45,6 +45,7 @@ const SOURCES = [
   'achievements.js',
   'stats.js',
   'gamepad.js',
+  'touch.js',
   'main.js',
   'ui.js',
 ];

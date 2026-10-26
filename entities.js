@@ -44,14 +44,16 @@ class PlayerShip {
 
   update(dt) {
     const m = frameMult(dt);
-    // Movement input: keyboard gives -1 / 0 / 1 per axis; a gamepad's
-    // analog stick (gamepad.js) overrides it with -1..1, so a partial tilt
-    // accelerates proportionally slower.
+    // Movement input: keyboard gives -1 / 0 / 1 per axis; an analog source
+    // — gamepad stick (gamepad.js) or touch thumbstick (touch.js) —
+    // overrides it with -1..1, so a partial tilt accelerates slower.
     const accel = CONFIG.playerSpeed * 0.15 * m;
     let ix = ((keys['ArrowRight'] || keys['KeyD']) ? 1 : 0) - ((keys['ArrowLeft'] || keys['KeyA']) ? 1 : 0);
     let iy = ((keys['ArrowDown'] || keys['KeyS']) ? 1 : 0) - ((keys['ArrowUp'] || keys['KeyW']) ? 1 : 0);
-    if (padMoveX !== 0) ix = padMoveX;
-    if (padMoveY !== 0) iy = padMoveY;
+    const ax = padMoveX || touchMoveX;
+    const ay = padMoveY || touchMoveY;
+    if (ax !== 0) ix = ax;
+    if (ay !== 0) iy = ay;
     this.vx += accel * ix;
     this.vy += accel * iy;
 
@@ -110,7 +112,7 @@ class PlayerShip {
     }
 
     // Shooting cannon fires
-    if (keys['Space'] || keys.PadFire) {
+    if (keys['Space'] || keys.PadFire || keys.TouchFire) {
       this.shoot();
     }
 
