@@ -332,8 +332,9 @@ window.addEventListener('load', () => {
   canvas = document.getElementById('gameCanvas');
   ctx = canvas.getContext('2d');
 
-  canvas.width = CONFIG.width;
-  canvas.height = CONFIG.height;
+  // Backing store sized to the displayed size x devicePixelRatio; game code
+  // still draws in CONFIG.width x CONFIG.height units (see render.js).
+  initHiDpiCanvas();
 
   // Restore prior session's settings before any listeners wire up so the
   // controls' visual state matches the values we just pushed into the game.

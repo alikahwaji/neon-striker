@@ -3203,6 +3203,78 @@ const MATRIX_RAIN_COLOURS = [
 ];
 
 /* ----------------------------------------------------
+   HIGH-DPI CANVAS SIZING
+   ----------------------------------------------------
+   All game code draws in CONFIG.width x CONFIG.height (800x600) logical
+   units. The canvas used to have exactly that many pixels and was then
+   CSS-stretched to fill the container, so on high-DPI laptops and large
+   monitors every frame was upscaled and soft. Now the backing store
+   matches the displayed size x devicePixelRatio and drawGame applies a
+   uniform scale, so lines and glows rasterise at native resolution. */
+const MAX_DPR = 2;               // beyond 2x the extra pixels aren't visible but cost fill-rate
+const MAX_BACKING_WIDTH = 2400;  // caps fullscreen 4K at 2400x1800
+let renderScale = 1;
+
+function computeRenderScale() {
+  // clientWidth is layout size, unaffected by the hit-flash CSS transform
+  // (getBoundingClientRect would report the shaken box and thrash resizes).
+  const cssWidth = canvas ? canvas.clientWidth : 0;
+  if (!cssWidth) return 1; // hidden / not laid out yet — plain 800x600
+  const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
+  const s = (cssWidth * dpr) / CONFIG.width;
+  return Math.max(0.5, Math.min(s, MAX_BACKING_WIDTH / CONFIG.width));
+}
+
+function resizeCanvasToDisplay() {
+  if (!canvas) return;
+  const s = computeRenderScale();
+  const w = Math.round(CONFIG.width * s);
+  const h = Math.round(CONFIG.height * s);
+  if (canvas.width === w && canvas.height === h) return;
+  // Resizing clears the bitmap and resets all context state; drawGame
+  // re-applies the transform at the start of every frame.
+  canvas.width = w;
+  canvas.height = h;
+  renderScale = w / CONFIG.width;
+}
+
+// shadowBlur is specified in device pixels and ignores the transform, so
+// at 2x every existing glow would render at half its size. Scale it on this
+// context instance so the ~30 shadowBlur call sites keep their look.
+function installShadowBlurScaling(context) {
+  const desc = Object.getOwnPropertyDescriptor(CanvasRenderingContext2D.prototype, 'shadowBlur');
+  if (!desc || !desc.set) return;
+  Object.defineProperty(context, 'shadowBlur', {
+    configurable: true,
+    get() { return desc.get.call(this) / renderScale; },
+    set(v) { desc.set.call(this, v * renderScale); }
+  });
+}
+
+function initHiDpiCanvas() {
+  if (typeof CanvasRenderingContext2D !== 'undefined') installShadowBlurScaling(ctx);
+  resizeCanvasToDisplay();
+  if (typeof ResizeObserver !== 'undefined') {
+    new ResizeObserver(resizeCanvasToDisplay).observe(canvas);
+  } else {
+    window.addEventListener('resize', resizeCanvasToDisplay);
+  }
+  // devicePixelRatio changes (browser zoom, dragging to another monitor)
+  // don't always change the CSS size, so watch the resolution itself.
+  const watchDpr = () => {
+    if (!window.matchMedia) return;
+    const mq = window.matchMedia(`(resolution: ${window.devicePixelRatio || 1}dppx)`);
+    const onChange = () => {
+      if (mq.removeEventListener) mq.removeEventListener('change', onChange);
+      resizeCanvasToDisplay();
+      watchDpr();
+    };
+    if (mq.addEventListener) mq.addEventListener('change', onChange);
+  };
+  watchDpr();
+}
+
+/* ----------------------------------------------------
    BACKGROUND SCROLLING GRID RENDER
    ---------------------------------------------------- */
 function drawSynthwaveBackground() {
@@ -3482,6 +3554,9 @@ function drawSynthwaveBackground() {
    CANVAS DRAWING / RENDERING STAGE
    ---------------------------------------------------- */
 function drawGame() {
+  // Map 800x600 logical units onto the high-DPI backing store (see
+  // resizeCanvasToDisplay). Set fresh every frame because a resize resets it.
+  ctx.setTransform(renderScale, 0, 0, renderScale, 0, 0);
   ctx.save();
 
   if (traumaLevel > 0) {
@@ -6009,8 +6084,9 @@ window.addEventListener('load', () => {
   canvas = document.getElementById('gameCanvas');
   ctx = canvas.getContext('2d');
 
-  canvas.width = CONFIG.width;
-  canvas.height = CONFIG.height;
+  // Backing store sized to the displayed size x devicePixelRatio; game code
+  // still draws in CONFIG.width x CONFIG.height units (see render.js).
+  initHiDpiCanvas();
 
   // Restore prior session's settings before any listeners wire up so the
   // controls' visual state matches the values we just pushed into the game.
