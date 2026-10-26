@@ -1835,3 +1835,15 @@ html.reduce-motion .neon-drop {
 html.reduce-motion .game-container.base-hit-flash {
   animation: base-hit-pulse 0.38s ease-out !important;
 }
+
+/* ----------------------------------------------------
+   GAMEPAD MENU FOCUS
+   ----------------------------------------------------
+   Highlight for the button selected with a controller's D-pad / stick
+   (gamepad.js adds .pad-focus). Buttons otherwise suppress the focus
+   outline, so without this a controller user can't see the selection. */
+button.pad-focus {
+  outline: 2px solid #fff !important;
+  outline-offset: 3px;
+  box-shadow: 0 0 18px rgba(255, 255, 255, 0.55), 0 0 6px currentColor !important;
+}

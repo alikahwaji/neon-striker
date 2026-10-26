@@ -65,6 +65,21 @@ Built on top of the modular **Firebase Web SDK v12.13.0** loaded directly from C
 | **`E`** or **`SHIFT`** | Trigger Tactical EMP Shockwave *(Requires Hangar Unlock)* |
 | **`P`** | Pause / Resume Arcade Simulation |
 
+### 🎮 Gamepad
+
+Any standard-mapping controller (Xbox, PlayStation, most USB pads) works — plug it in or press a button and a *CONTROLLER CONNECTED* toast appears.
+
+| Controller | Action |
+| :--- | :--- |
+| **Left stick** (analog) or **D-pad** | Flight movement — a partial stick tilt flies proportionally slower |
+| **A / ✕** or **Right Trigger** | Fire |
+| **B / ○** or **Left Bumper** | EMP shockwave |
+| **Right Bumper** or **Left Trigger** | Bullet time (Matrix sector) |
+| **Start** | Pause / resume |
+| **D-pad / stick + A** (in menus) | Move between buttons / press the highlighted one |
+
+Hits, BOMBs and EMPs rumble the controller (follows the **Screen Vibration** setting). Unplugging mid-fight auto-pauses.
+
 ---
 
 ## 🛸 Retro Cheat Codes Console

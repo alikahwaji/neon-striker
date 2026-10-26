@@ -434,7 +434,7 @@ function updateGame(dt) {
 
   // Bullet-Time active checks in Level 17 Matrix theme:
   if (lvlData.theme === 'matrix' && gameActive && !gamePaused) {
-    bulletTimeActive = keys['ShiftLeft'] || keys['ShiftRight'] || keys['KeyE'] || keys['KeyQ'];
+    bulletTimeActive = keys['ShiftLeft'] || keys['ShiftRight'] || keys['KeyE'] || keys['KeyQ'] || keys.PadBulletTime;
   } else {
     bulletTimeActive = false;
   }
@@ -488,7 +488,7 @@ function updateGame(dt) {
     // the instant its cooldown hit zero with no way for the player to stop it.
     // Reading keysPressed instead means one press = at most one EMP attempt.
     if (playerUpgrades.emp > 0 && gameActive && !gamePaused && empCooldownTimer <= 0) {
-      if (keysPressed['KeyE'] || keysPressed['ShiftLeft'] || keysPressed['ShiftRight']) {
+      if (keysPressed['KeyE'] || keysPressed['ShiftLeft'] || keysPressed['ShiftRight'] || keysPressed.PadEMP) {
         triggerPlayerEMP();
       }
     }
@@ -795,6 +795,11 @@ function gameTick(timestamp) {
   // 50ms covers ~3 dropped frames at 60Hz, which is more than enough headroom.
   const dt = Math.min(rawDt, 50);
   renderFrameMult = frameMult(dt);
+
+  // Controller input feeds keys / keysPressed / padMove*, so it must be
+  // read before updateGame consumes them (and also while paused / in
+  // menus, for Start-to-resume and menu navigation).
+  pollGamepad();
 
   if (gameActive && !gamePaused) {
     updateGame(dt);
