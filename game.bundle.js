@@ -1142,6 +1142,30 @@ CONFIG.playerShieldActive = function() {
    CONFIG, LEVEL_DATABASE, and shared state are available.
    ---------------------------------------------------- */
 
+// Cheap neon glow for the current path: two wide, faint passes of the same
+// stroke under the crisp one. Used instead of shadowBlur on high-count
+// entities (enemies, asteroids, pods, pickups) — shadowBlur is a per-draw
+// Gaussian blur whose cost scales with device-pixel area, so on high-DPI
+// canvases it dominated frame time on busy levels. Same idea as the halo
+// overdraw Laser / Particle / Debris already use.
+const HALO_PASSES = [[10, 0.07], [6, 0.11], [3, 0.18]]; // [extra width, alpha] wide -> narrow
+function strokeWithHalo() {
+  const a = ctx.globalAlpha;
+  const w = ctx.lineWidth;
+  const join = ctx.lineJoin;
+  // Round joins: wide mitred strokes grow spikes at the sharp hull corners.
+  ctx.lineJoin = 'round';
+  for (let i = 0; i < HALO_PASSES.length; i++) {
+    ctx.globalAlpha = a * HALO_PASSES[i][1];
+    ctx.lineWidth = w + HALO_PASSES[i][0];
+    ctx.stroke();
+  }
+  ctx.lineJoin = join;
+  ctx.globalAlpha = a;
+  ctx.lineWidth = w;
+  ctx.stroke();
+}
+
 // Player Space Fighter Class
 class PlayerShip {
   constructor() {
@@ -1757,8 +1781,6 @@ class Asteroid {
 
   draw() {
     ctx.save();
-    ctx.shadowBlur = 12;
-    ctx.shadowColor = this.color;
     ctx.strokeStyle = this.color;
     ctx.fillStyle = '#050314';
     ctx.lineWidth = 2.0;
@@ -1780,7 +1802,7 @@ class Asteroid {
     }
     ctx.closePath();
     ctx.fill();
-    ctx.stroke();
+    strokeWithHalo(); // halo instead of shadowBlur — storms put dozens on screen
 
     // Cracks details
     ctx.strokeStyle = 'rgba(255,255,255,0.15)';
@@ -2208,10 +2230,19 @@ class Enemy {
     }
   }
 
+  // Stroke the current path; non-boss enemies get the halo glow instead of
+  // shadowBlur (a sub-element that sets its own shadowBlur keeps it).
+  glowStroke() {
+    if (this.isBoss || ctx.shadowBlur > 0) ctx.stroke();
+    else strokeWithHalo();
+  }
+
   draw() {
     ctx.save();
     ctx.globalAlpha = this.alpha;
-    ctx.shadowBlur = 10;
+    // Bosses (one at a time) keep the real blur; the rest of the grid uses
+    // halo strokes via glowStroke() — see strokeWithHalo.
+    ctx.shadowBlur = this.isBoss ? 10 : 0;
     ctx.shadowColor = this.color;
     ctx.strokeStyle = this.color;
     ctx.fillStyle = '#060312';
@@ -2231,7 +2262,7 @@ class Enemy {
       ctx.lineTo(this.x + this.width / 2 - 35, this.y + this.height - 20);
       ctx.closePath();
       ctx.fill();
-      ctx.stroke();
+      this.glowStroke();
 
       // Energy core
       ctx.fillStyle = '#ffea00';
@@ -2251,7 +2282,7 @@ class Enemy {
       ctx.lineTo(this.x + 15, this.y + this.height - 30);
       ctx.closePath();
       ctx.fill();
-      ctx.stroke();
+      this.glowStroke();
 
       // Shield wings lines
       ctx.strokeStyle = '#00f0ff';
@@ -2264,13 +2295,13 @@ class Enemy {
       ctx.beginPath();
       ctx.arc(this.x + this.width / 2, this.y + this.height / 2, 32, 0, Math.PI * 2);
       ctx.fill();
-      ctx.stroke();
+      this.glowStroke();
 
       // Golden outer rings
       ctx.strokeStyle = '#ffea00';
       ctx.beginPath();
       ctx.arc(this.x + this.width / 2, this.y + this.height / 2, 40, 0, Math.PI * 2);
-      ctx.stroke();
+      this.glowStroke();
 
       // Inner maw
       ctx.fillStyle = '#ff003c';
@@ -2285,7 +2316,7 @@ class Enemy {
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.arc(this.x + this.width / 2, this.y + this.height / 2, 48, 0, Math.PI * 2);
-        ctx.stroke();
+        this.glowStroke();
       }
     } 
     else if (this.type === 'shieldBlocker') {
@@ -2297,7 +2328,7 @@ class Enemy {
       ctx.lineTo(this.x, this.y + 4);
       ctx.closePath();
       ctx.fill();
-      ctx.stroke();
+      this.glowStroke();
 
       // Inner save/restore dropped — the outer draw() save (line 1062)
       // already restores strokeStyle / shadowColor / shadowBlur / lineWidth
@@ -2309,7 +2340,7 @@ class Enemy {
       ctx.lineWidth = 3.5;
       ctx.beginPath();
       ctx.arc(this.x + this.width / 2, this.y + this.height + 6, this.width / 2 + 4, Math.PI * 0.15, Math.PI * 0.85);
-      ctx.stroke();
+      this.glowStroke();
     }
     else if (this.type === 'sniper') {
       ctx.beginPath();
@@ -2318,7 +2349,7 @@ class Enemy {
       ctx.lineTo(this.x, this.y);
       ctx.closePath();
       ctx.fill();
-      ctx.stroke();
+      this.glowStroke();
       
       ctx.fillStyle = this.color;
       ctx.fillRect(this.x + this.width / 2 - 3, this.y + this.height, 6, 6);
@@ -2342,7 +2373,7 @@ class Enemy {
         ctx.beginPath();
         ctx.moveTo(sx, sy);
         ctx.lineTo(px, py);
-        ctx.stroke();
+        this.glowStroke();
       }
     }
     else if (this.type === 'lightCycle') {
@@ -2358,7 +2389,7 @@ class Enemy {
           ctx.lineTo(this.trail[t].x, this.trail[t].y);
         }
         ctx.lineTo(this.x + this.width / 2, this.y + this.height / 2);
-        ctx.stroke();
+        this.glowStroke();
         ctx.restore();
       }
 
@@ -2366,7 +2397,7 @@ class Enemy {
       ctx.arc(this.x + 8, this.y + this.height / 2, 6, 0, Math.PI * 2);
       ctx.arc(this.x + this.width - 8, this.y + this.height / 2, 6, 0, Math.PI * 2);
       ctx.fill();
-      ctx.stroke();
+      this.glowStroke();
       
       ctx.beginPath();
       ctx.moveTo(this.x + 6, this.y + 6);
@@ -2374,7 +2405,7 @@ class Enemy {
       ctx.lineTo(this.x + this.width - 2, this.y + this.height - 6);
       ctx.lineTo(this.x + 2, this.y + this.height - 6);
       ctx.closePath();
-      ctx.stroke();
+      this.glowStroke();
     }
     else if (this.type === 'sentry') {
       const sx = this.x + this.width / 2;
@@ -2389,7 +2420,7 @@ class Enemy {
       ctx.lineTo(sx - 4, sy);
       ctx.lineTo(sx + 4, sy);
       ctx.lineTo(sx + 4, this.y + 6);
-      ctx.stroke();
+      this.glowStroke();
       
       ctx.save();
       ctx.translate(sx, sy);
@@ -2429,7 +2460,7 @@ class Enemy {
       ctx.beginPath();
       ctx.arc(0, 0, 10, 0, Math.PI * 2);
       ctx.fill();
-      ctx.stroke();
+      this.glowStroke();
       ctx.fillRect(0, -2, 14, 4);
       ctx.strokeRect(0, -2, 14, 4);
     }
@@ -2447,14 +2478,14 @@ class Enemy {
       ctx.moveTo(cx + 30, cy - radius + 15);
       ctx.quadraticCurveTo(cx + 85, cy - radius - 20, cx + 110, cy - radius + 25);
       ctx.quadraticCurveTo(cx + 80, cy - radius + 10, cx + radius - 4, cy - 20);
-      ctx.stroke();
+      this.glowStroke();
       
       ctx.fillStyle = '#100b1d';
       ctx.lineWidth = 3.0;
       ctx.beginPath();
       ctx.arc(cx, cy, radius, 0, Math.PI * 2);
       ctx.fill();
-      ctx.stroke();
+      this.glowStroke();
       
       ctx.save();
       ctx.strokeStyle = this.phase2 ? '#ff003c' : '#ff7a00';
@@ -2470,7 +2501,7 @@ class Enemy {
       ctx.lineTo(cx + radius - 10, cy - 15);
       ctx.moveTo(cx - radius + 10, cy + 15);
       ctx.lineTo(cx + radius - 10, cy + 15);
-      ctx.stroke();
+      this.glowStroke();
       ctx.restore();
       
       const mawRadius = this.phase2 ? 24 + Math.sin(this.phase * 5) * 5 : 14 + Math.sin(this.phase * 2) * 2;
@@ -2486,7 +2517,7 @@ class Enemy {
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.arc(cx, cy + 25, mawRadius, 0, Math.PI * 2);
-      ctx.stroke();
+      this.glowStroke();
       ctx.restore();
       
       if (this.phase2) {
@@ -2498,7 +2529,7 @@ class Enemy {
         const voidRing = (frameNow / 15) % 110;
         ctx.beginPath();
         ctx.arc(cx, cy + 25, voidRing, 0, Math.PI * 2);
-        ctx.stroke();
+        this.glowStroke();
         ctx.restore();
       }
     }
@@ -2511,7 +2542,7 @@ class Enemy {
       ctx.lineTo(this.x, this.y);
       ctx.closePath();
       ctx.fill();
-      ctx.stroke();
+      this.glowStroke();
     }
 
     // Health bar above for Bosses
@@ -2578,8 +2609,6 @@ class HatchingPod {
 
   draw() {
     ctx.save();
-    ctx.shadowBlur = 12;
-    ctx.shadowColor = this.color;
     ctx.strokeStyle = this.color;
     ctx.fillStyle = '#030d04';
     ctx.lineWidth = 2.0;
@@ -2591,7 +2620,7 @@ class HatchingPod {
     ctx.arc(0, 0, 18, 0, Math.PI * 2);
     ctx.closePath();
     ctx.fill();
-    ctx.stroke();
+    strokeWithHalo();
 
     // Petal lips details top
     ctx.fillStyle = '#ff00aa';
@@ -2653,8 +2682,6 @@ class ScrapCredit {
 
   draw() {
     ctx.save();
-    ctx.shadowBlur = 8;
-    ctx.shadowColor = this.color;
     ctx.fillStyle = this.color;
     ctx.strokeStyle = '#fff';
     ctx.lineWidth = 1;
@@ -2662,6 +2689,11 @@ class ScrapCredit {
     ctx.translate(this.x, this.y);
     ctx.rotate(this.phase);
     
+    // Soft square halo instead of shadowBlur (boss kills drop 12 at once).
+    ctx.globalAlpha = 0.25;
+    ctx.fillRect(-7, -7, 14, 14);
+    ctx.globalAlpha = 1;
+
     // Draw spinning gear/screw shape
     ctx.fillRect(-4, -4, 8, 8);
     ctx.strokeRect(-4, -4, 8, 8);
@@ -2837,8 +2869,6 @@ class PowerUp {
 
   draw() {
     ctx.save();
-    ctx.shadowBlur = 12;
-    ctx.shadowColor = this.color;
     ctx.strokeStyle = this.color;
     ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
     ctx.lineWidth = 2.0;
@@ -2850,7 +2880,7 @@ class PowerUp {
     ctx.lineTo(this.x, this.y + this.height / 2 + Math.sin(this.phase) * 2);
     ctx.closePath();
     ctx.fill();
-    ctx.stroke();
+    strokeWithHalo();
 
     ctx.fillStyle = '#fff';
     ctx.font = 'bold 11px Orbitron, sans-serif';
@@ -3172,12 +3202,16 @@ class FloatingText {
 
   draw() {
     ctx.save();
-    ctx.globalAlpha = this.alpha;
-    ctx.shadowBlur = 4;
-    ctx.shadowColor = this.color;
     ctx.fillStyle = this.color;
+    ctx.strokeStyle = this.color;
     ctx.font = `bold ${this.fontSize}px Orbitron, sans-serif`;
     ctx.textAlign = 'center';
+    // Faint outline halo instead of shadowBlur — every hit spawns a damage
+    // number, so dozens of these can be on screen in a fight.
+    ctx.globalAlpha = this.alpha * 0.25;
+    ctx.lineWidth = 3;
+    ctx.strokeText(this.text, this.x, this.y);
+    ctx.globalAlpha = this.alpha;
     ctx.fillText(this.text, this.x, this.y);
     ctx.restore();
   }
