@@ -52,6 +52,7 @@ Built on top of the modular **Firebase Web SDK v12.13.0** loaded directly from C
 *   **Firestore hall of fame**: Instantly query and display global leaderboard ratings, flagged with a globe (`🌐`) icon.
 *   **Analytics Telemetry**: Automatically records session flow triggers (`game_start`, `level_start`, `purchase_upgrade`, `game_over`, `submit_score`) to map gameplay stats.
 *   **Hardened security rules**: The Firebase Web SDK config (`apiKey`, `projectId`) is bundled into the public site — that's intentional, the Web SDK can't function without it. The real security boundary is [`firestore.rules`](firestore.rules), which restricts writes to strict shape validation (whitelisted fields, type/length checks, score range cap, server-timestamp enforcement) and blocks all updates/deletes. To deploy: paste the contents of `firestore.rules` into **Firebase Console → Firestore Database → Rules → Publish**.
+*   **Required index**: the Today (daily) board queries `leaderboard_daily` by `date` and sorts by `score` descending, which needs the composite index in [`firestore.indexes.json`](firestore.indexes.json). Without it the board shows "Daily board unreachable". Create it in **Firestore Database → Indexes → Add index** (collection `leaderboard_daily`: `date` Ascending, `score` Descending), or `firebase deploy --only firestore:indexes`.
 
 ---
 
