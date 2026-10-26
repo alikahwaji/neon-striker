@@ -136,11 +136,12 @@ class SynthAudioEngine {
     
     // Create master gain nodes
     this.masterMusicGain = this.ctx.createGain();
-    this.masterMusicGain.gain.setValueAtTime(this.musicVolume, this.ctx.currentTime);
+    // Honour a mute toggled on the menu before the context existed.
+    this.masterMusicGain.gain.setValueAtTime(this.muted ? 0 : this.musicVolume, this.ctx.currentTime);
     this.masterMusicGain.connect(this.ctx.destination);
     
     this.masterSfxGain = this.ctx.createGain();
-    this.masterSfxGain.gain.setValueAtTime(this.sfxVolume, this.ctx.currentTime);
+    this.masterSfxGain.gain.setValueAtTime(this.muted ? 0 : this.sfxVolume, this.ctx.currentTime);
     this.masterSfxGain.connect(this.ctx.destination);
     
     this.createNoiseBuffer();

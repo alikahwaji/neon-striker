@@ -946,7 +946,9 @@ class Enemy {
         
         let baseTimer = 2200 + Math.random() * 2500;
         if (this.type === 'boss' || this.type === 'boss2') {
-          baseTimer = 1400 - currentLevel * 80;
+          // Floor keeps late campaign / endless bosses from hitting <=0 and
+          // firing a full volley every frame (1400 - 18*80 = -40).
+          baseTimer = Math.max(600, 1400 - currentLevel * 80);
         } else if (this.type === 'sandworm') {
           baseTimer = 800; // Super fast firing rate
         }
@@ -1411,6 +1413,12 @@ class HatchingPod {
     this.color = '#39ff14'; // Pulsing green eggs
     this.health = 2;
     this.phase = Math.random() * Math.PI;
+    // destroyEnemy adds scoreValue unconditionally and the pierce/EMP dedup
+    // keys on id — without these a pod kill turned the score into NaN and
+    // every pod shared the hitEnemies["undefined"] slot.
+    this.scoreValue = 150;
+    this.isBoss = false;
+    this.id = ++nextEntityId;
   }
 
   update() {

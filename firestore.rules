@@ -33,12 +33,14 @@ service cloud.firestore {
     }
 
     function isValidScore(v) {
-      // Cap at 100,000,000 — well above any legitimate score (the in-game
-      // hybrid formatter handles up to 7-digit values comfortably).
-      // Rejects negatives, decimals, strings, NaN, and silly outliers.
+      // Cap at 1,000,000,000. Endless mode has no level cap, so the old
+      // 100M ceiling silently rejected genuine deep-endless runs. Trade-off:
+      // a forged write can now claim up to 1B — the cap only bounds silly
+      // outliers, it was never real anti-cheat (see App Check for that).
+      // Rejects negatives, decimals, strings, NaN, and anything larger.
       return v is int
           && v >= 0
-          && v <= 100000000;
+          && v <= 1000000000;
     }
 
     function isValidDate(v) {
@@ -47,6 +49,16 @@ service cloud.firestore {
       return v is string
           && v.size() == 10
           && v.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
+    }
+
+    function isTodayOrYesterdayUTC(v) {
+      // Parse the client's 'YYYY-MM-DD' into a midnight-UTC timestamp and
+      // compare with the server's day. (Timestamps have no toString(), so the
+      // previous string comparison errored and denied every daily write.)
+      // Yesterday is accepted so a run started before UTC midnight and
+      // submitted after it still lands on the board it was seeded for.
+      return timestamp.date(int(v[0:4]), int(v[5:7]), int(v[8:10])) == request.time.date()
+          || timestamp.date(int(v[0:4]), int(v[5:7]), int(v[8:10])) == request.time.date() - duration.value(1, 'd');
     }
 
     function hasOnlyFields(data, allowed) {
@@ -72,8 +84,8 @@ service cloud.firestore {
     // ---------- Daily challenge leaderboard ----------
     // Document shape (from database.js saveDailyHighScore):
     //   { name, score, date: 'YYYY-MM-DD', timestamp: serverTimestamp() }
-    // The date field must equal today's UTC date — prevents back-filling
-    // yesterday's or future dates' boards.
+    // The date field must be today's UTC date (or yesterday's, for runs that
+    // cross midnight) — prevents back-filling older or future boards.
     match /leaderboard_daily/{docId} {
       allow read: if true;
 
@@ -82,7 +94,7 @@ service cloud.firestore {
         && isValidName(request.resource.data.name)
         && isValidScore(request.resource.data.score)
         && isValidDate(request.resource.data.date)
-        && request.resource.data.date == request.time.date().toString()
+        && isTodayOrYesterdayUTC(request.resource.data.date)
         && request.resource.data.timestamp == request.time;
 
       allow update, delete: if false;

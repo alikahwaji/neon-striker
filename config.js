@@ -53,6 +53,12 @@ let levelDamageTaken = false;
 
 // All-Ages Expansion globals
 let selectedDifficulty = 'hero'; // 'cadet', 'hero', 'elite'
+
+// Hull pool before shield upgrades. Cadet gets the double hull the README
+// promises; Hero and Elite start at 100.
+function getBaseMaxHealth() {
+  return selectedDifficulty === 'cadet' ? 200 : 100;
+}
 let selectedSkin = 'default';    // 'default', 'toxic', 'solar', 'void', 'saucer'
 let cheatRainbow = false;
 let cheatGod = false;

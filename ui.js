@@ -6,11 +6,64 @@
    ---------------------------------------------------- */
 
 /* ----------------------------------------------------
+   RUN ENTRY POINTS (menu buttons + RESTART)
+   ---------------------------------------------------- */
+function startCampaignRun() {
+  // Clean handoff: any prior mode (daily / boss rush) is cleared so the
+  // next INITIATE GAME is a vanilla campaign.
+  dailyMode = false;
+  dailyDate = null;
+  deactivateDailySeed();
+  bossRushMode = false;
+  bossRushIndex = 0;
+  startGame();
+}
+
+function startDailyRun() {
+  // Daily Challenge: seed Math.random with today's UTC date so every
+  // pilot today faces the same spawn timings, asteroid drops, etc.
+  // Difficulty is locked to Hero for fairness.
+  dailyMode = true;
+  dailyDate = todayDateUTC();
+  activateDailySeed(dailyDate);
+  bossRushMode = false;
+  bossRushIndex = 0;
+  selectedDifficulty = 'hero';
+  document.querySelectorAll('.diff-btn').forEach(b => {
+    b.classList.toggle('active', b.getAttribute('data-diff') === 'hero');
+  });
+  if (window.Achievements) Achievements.notify('daily_started', { date: dailyDate });
+  startGame();
+}
+
+function startBossRushRun() {
+  // Boss Rush: 4 bosses back-to-back, no shop, no continues. Other modes
+  // get cleared so this is a pure gauntlet.
+  bossRushMode = true;
+  bossRushIndex = 0;
+  dailyMode = false;
+  dailyDate = null;
+  deactivateDailySeed();
+  startGame();
+}
+
+/* ----------------------------------------------------
    LEADERBOARD STORAGE HANDLERS
    ---------------------------------------------------- */
 function getLeaderboard() {
-  let board = localStorage.getItem('neon_striker_high_scores');
-  if (!board) {
+  let board = null;
+  try {
+    const raw = localStorage.getItem('neon_striker_high_scores');
+    if (raw) board = JSON.parse(raw);
+  } catch (e) {
+    board = null;
+  }
+  if (Array.isArray(board)) {
+    // Drop malformed rows — including the score:null entries the old
+    // HatchingPod NaN-score bug wrote (JSON.stringify turns NaN into null).
+    board = board.filter(r => r && typeof r.name === 'string' && Number.isFinite(r.score));
+  }
+  if (!Array.isArray(board) || board.length === 0) {
     board = [
       { name: 'CPU', score: 85000 },
       { name: 'DM2', score: 62000 },
@@ -18,9 +71,9 @@ function getLeaderboard() {
       { name: 'ADA', score: 35000 },
       { name: 'SYN', score: 20000 }
     ];
-    localStorage.setItem('neon_striker_high_scores', JSON.stringify(board));
-  } else {
-    board = JSON.parse(board);
+    try {
+      localStorage.setItem('neon_striker_high_scores', JSON.stringify(board));
+    } catch (e) { /* storage blocked — the in-memory defaults still work */ }
   }
   return board.sort((a, b) => b.score - a.score);
 }
@@ -65,7 +118,13 @@ function setLeaderboardScope(scope) {
   updateLeaderboardUI();
 }
 
+// Bumped per updateLeaderboardUI call; an await that resolves after a newer
+// call started (fast Today/All-Time tab switching) bails instead of drawing
+// its rows under the wrong tab.
+let leaderboardRequestId = 0;
+
 async function updateLeaderboardUI() {
+  const requestId = ++leaderboardRequestId;
   const body = document.getElementById('leaderboard-body');
   body.innerHTML = '';
 
@@ -97,6 +156,10 @@ async function updateLeaderboardUI() {
     }
     try {
       const dailyScores = await window.getDailyHighScores(todayDateUTC());
+      if (requestId !== leaderboardRequestId) return;
+      // getDailyHighScores swallows its own errors and returns null, so
+      // surface that as the unreachable state rather than "no runs yet".
+      if (dailyScores === null) throw new Error('daily board fetch failed');
       body.innerHTML = '';
       if (dailyScores && dailyScores.length > 0) {
         dailyScores.forEach((record, index) => {
@@ -114,6 +177,7 @@ async function updateLeaderboardUI() {
         body.append(tr);
       }
     } catch (e) {
+      if (requestId !== leaderboardRequestId) return;
       console.warn('Failed to load daily scores:', e);
       // Replace the loading shimmer with a real error state — previously a
       // failed fetch left '🌙 LOADING TODAY'S RUNS...' blinking forever.
@@ -135,6 +199,7 @@ async function updateLeaderboardUI() {
   if (window.firebaseEnabled) {
     try {
       const globalScores = await window.getGlobalHighScores();
+      if (requestId !== leaderboardRequestId) return;
       if (globalScores && globalScores.length > 0) {
         body.innerHTML = '';
         globalScores.forEach((record, index) => {
@@ -147,6 +212,7 @@ async function updateLeaderboardUI() {
         return;
       }
     } catch (e) {
+      if (requestId !== leaderboardRequestId) return;
       console.warn("Failed to load Firebase scores, falling back to browser archives:", e);
     }
   }
@@ -274,13 +340,15 @@ window.addEventListener('load', () => {
   applyPersistedSettings(loadPersistedSettings());
 
   window.addEventListener('keydown', e => {
-    if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
-      e.preventDefault();
-    }
     // Don't intercept M / P while the cheat-code input is focused — typing
     // 'matrix' or any code containing those letters would otherwise mute or
     // pause the game underneath the modal.
     const typingInForm = e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA');
+    // Block page scroll on game keys, but not inside text fields — there
+    // Space and the arrows must type a space / move the caret.
+    if (!typingInForm && ['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
+      e.preventDefault();
+    }
     // Record a one-shot edge only on the initial press, not on key-repeat,
     // so a held Shift on Matrix levels doesn't auto-trigger EMP every frame.
     if (!keys[e.code]) {
@@ -307,42 +375,9 @@ window.addEventListener('load', () => {
   });
 
   // UI Button listener hooks
-  document.getElementById('btn-start').addEventListener('click', () => {
-    // Clean handoff: any prior mode (daily / boss rush) is cleared so the
-    // next INITIATE GAME is a vanilla campaign.
-    dailyMode = false;
-    dailyDate = null;
-    deactivateDailySeed();
-    bossRushMode = false;
-    bossRushIndex = 0;
-    startGame();
-  });
-
-  document.getElementById('btn-daily').addEventListener('click', () => {
-    // Daily Challenge: seed Math.random with today's UTC date so every
-    // pilot today faces the same spawn timings, asteroid drops, etc.
-    // Difficulty is locked to Hero for fairness.
-    dailyMode = true;
-    dailyDate = todayDateUTC();
-    activateDailySeed(dailyDate);
-    selectedDifficulty = 'hero';
-    document.querySelectorAll('.diff-btn').forEach(b => {
-      b.classList.toggle('active', b.getAttribute('data-diff') === 'hero');
-    });
-    if (window.Achievements) Achievements.notify('daily_started', { date: dailyDate });
-    startGame();
-  });
-
-  document.getElementById('btn-bossrush').addEventListener('click', () => {
-    // Boss Rush: 4 bosses back-to-back, no shop, no continues. Other modes
-    // get cleared so this is a pure gauntlet.
-    bossRushMode = true;
-    bossRushIndex = 0;
-    dailyMode = false;
-    dailyDate = null;
-    deactivateDailySeed();
-    startGame();
-  });
+  document.getElementById('btn-start').addEventListener('click', startCampaignRun);
+  document.getElementById('btn-daily').addEventListener('click', startDailyRun);
+  document.getElementById('btn-bossrush').addEventListener('click', startBossRushRun);
 
   document.getElementById('btn-settings').addEventListener('click', () => {
     document.getElementById('start-menu').classList.add('hidden');
@@ -399,7 +434,12 @@ window.addEventListener('load', () => {
   }
 
   document.getElementById('btn-restart').addEventListener('click', () => {
-    startGame();
+    // Replay through the same entry point the finished run used, so Boss
+    // Rush restarts at boss 1 and a Daily retry is re-seeded rather than
+    // playing unseeded spawns that still post to the daily board.
+    if (bossRushMode) startBossRushRun();
+    else if (dailyMode) startDailyRun();
+    else startCampaignRun();
   });
 
   document.getElementById('btn-continue').addEventListener('click', () => {
@@ -518,7 +558,7 @@ window.addEventListener('load', () => {
       }
       
       // Permanently adjust ship shielding pools
-      maxHealth = 100 + (playerUpgrades.shield - 1) * 20;
+      maxHealth = getBaseMaxHealth() + (playerUpgrades.shield - 1) * 20;
       health = maxHealth; // Heal completely
       
       GameAudio.playPowerUpSound();

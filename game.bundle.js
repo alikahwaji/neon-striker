@@ -147,11 +147,12 @@ class SynthAudioEngine {
     
     // Create master gain nodes
     this.masterMusicGain = this.ctx.createGain();
-    this.masterMusicGain.gain.setValueAtTime(this.musicVolume, this.ctx.currentTime);
+    // Honour a mute toggled on the menu before the context existed.
+    this.masterMusicGain.gain.setValueAtTime(this.muted ? 0 : this.musicVolume, this.ctx.currentTime);
     this.masterMusicGain.connect(this.ctx.destination);
     
     this.masterSfxGain = this.ctx.createGain();
-    this.masterSfxGain.gain.setValueAtTime(this.sfxVolume, this.ctx.currentTime);
+    this.masterSfxGain.gain.setValueAtTime(this.muted ? 0 : this.sfxVolume, this.ctx.currentTime);
     this.masterSfxGain.connect(this.ctx.destination);
     
     this.createNoiseBuffer();
@@ -765,6 +766,12 @@ let levelDamageTaken = false;
 
 // All-Ages Expansion globals
 let selectedDifficulty = 'hero'; // 'cadet', 'hero', 'elite'
+
+// Hull pool before shield upgrades. Cadet gets the double hull the README
+// promises; Hero and Elite start at 100.
+function getBaseMaxHealth() {
+  return selectedDifficulty === 'cadet' ? 200 : 100;
+}
 let selectedSkin = 'default';    // 'default', 'toxic', 'solar', 'void', 'saucer'
 let cheatRainbow = false;
 let cheatGod = false;
@@ -2058,7 +2065,9 @@ class Enemy {
         
         let baseTimer = 2200 + Math.random() * 2500;
         if (this.type === 'boss' || this.type === 'boss2') {
-          baseTimer = 1400 - currentLevel * 80;
+          // Floor keeps late campaign / endless bosses from hitting <=0 and
+          // firing a full volley every frame (1400 - 18*80 = -40).
+          baseTimer = Math.max(600, 1400 - currentLevel * 80);
         } else if (this.type === 'sandworm') {
           baseTimer = 800; // Super fast firing rate
         }
@@ -2523,6 +2532,12 @@ class HatchingPod {
     this.color = '#39ff14'; // Pulsing green eggs
     this.health = 2;
     this.phase = Math.random() * Math.PI;
+    // destroyEnemy adds scoreValue unconditionally and the pierce/EMP dedup
+    // keys on id — without these a pod kill turned the score into NaN and
+    // every pod shared the hitEnemies["undefined"] slot.
+    this.scoreValue = 150;
+    this.isBoss = false;
+    this.id = ++nextEntityId;
   }
 
   update() {
@@ -3951,6 +3966,14 @@ function spawnFacehuggerDrones(x, y) {
 
 function damagePlayer(amount) {
   if (cheatGod) {
+    // A hit absorbed by god mode still counts as "hit" for the damage-free
+    // rewards, or invincibility would farm Untouchable and the PERFECT
+    // SECTOR bonus every level. Skip during i-frames so a single overlap
+    // isn't reported every frame.
+    if (player.invulnFrames <= 0) {
+      levelDamageTaken = true;
+      if (window.Achievements) Achievements.notify('damage_taken', { amount });
+    }
     floatingTexts.push(new FloatingText(player.x + player.width / 2, player.y - 20, 'GOD MODE ACTIVE', '#ffffff'));
     GameAudio.playPowerUpSound();
     player.invulnFrames = 30;
@@ -4010,8 +4033,10 @@ function applyPowerUp(type) {
         
         // Add credits
         scrapItems.push(new ScrapCredit(enemy.x + enemy.width/2, enemy.y + enemy.height/2));
-      } else {
-        enemy.takeDamage(25);
+      } else if (enemy.takeDamage(25)) {
+        // Same kill path as a laser: the old code ignored this return, so a
+        // boss bombed to <=0 HP kept fighting until hit again.
+        destroyEnemy(enemy, e);
       }
     }
     enemyLasers = [];
@@ -4199,6 +4224,8 @@ const Achievements = (function () {
     }
   };
 
+  let skinsDirty = false;
+
   function persist() {
     try {
       const payload = {
@@ -4244,7 +4271,12 @@ const Achievements = (function () {
     } else if (eventName === 'scrap_collected') {
       state.perRun.scrapCollected += (payload && payload.amount) || 1;
     } else if (eventName === 'skin_selected') {
-      if (payload && payload.skin) state.skinsTried.add(payload.skin);
+      if (payload && payload.skin && !state.skinsTried.has(payload.skin)) {
+        state.skinsTried.add(payload.skin);
+        // Save now — otherwise Art Collector progress only reached storage
+        // as a side effect of a later kill / scrap pickup or unlock.
+        skinsDirty = true;
+      }
     } else if (eventName === 'upgrade_purchased') {
       if (payload && payload.type) state.perRun.upgradeTypes.add(payload.type);
     }
@@ -4262,7 +4294,8 @@ const Achievements = (function () {
       }
     }
 
-    if (newlyUnlocked.length > 0) {
+    if (newlyUnlocked.length > 0 || skinsDirty) {
+      skinsDirty = false;
       persist();
       newlyUnlocked.forEach(def => emit('unlocked', def));
     } else if (eventName === 'enemy_destroyed' || eventName === 'scrap_collected') {
@@ -4369,8 +4402,16 @@ const Stats = (function () {
       if (!raw) return;
       const parsed = JSON.parse(raw);
       if (parsed && typeof parsed === 'object') {
+        // Only accept values whose type matches the default — a stored
+        // skinUsage:null would crash run_started (blocking every Start), and
+        // a string count would turn ++ into string concatenation.
         Object.keys(data).forEach(k => {
-          if (k in parsed) data[k] = parsed[k];
+          if (!(k in parsed)) return;
+          const v = parsed[k];
+          const def = data[k];
+          if (typeof def === 'number' && Number.isFinite(v)) data[k] = v;
+          else if (def && typeof def === 'object' && v && typeof v === 'object' && !Array.isArray(v)) data[k] = v;
+          else if (typeof def === typeof v && typeof def !== 'object') data[k] = v;
         });
       }
     } catch (e) {
@@ -4404,8 +4445,9 @@ const Stats = (function () {
     } else if (eventName === 'level_completed') {
       const lv = (payload && payload.level) || 0;
       if (lv > data.longestRunLevel) data.longestRunLevel = lv;
-      // Beating Level 20 = full campaign completion.
-      if (lv >= 20) data.runsCompleted++;
+      // Beating Level 20 = full campaign completion. Exactly 20: endless
+      // sectors 21+ also report level_completed and used to count again.
+      if (lv === 20) data.runsCompleted++;
       dirty = true;
       persist();
     }
@@ -4570,7 +4612,8 @@ function triggerLevelClear() {
   if (bossRushMode) {
     bossRushIndex++;
     if (bossRushIndex >= BOSS_RUSH_SEQUENCE.length) {
-      if (window.Achievements) Achievements.notify('boss_rush_completed', {});
+      // Cheat-assisted (tainted) gauntlets don't earn GLADIATOR.
+      if (window.Achievements && !runTainted) Achievements.notify('boss_rush_completed', {});
       // Quick beat before showing the game-over panel so the level-clear
       // chime gets to play out.
       setTimeout(() => showGameOverScreen(), 1500);
@@ -4823,10 +4866,22 @@ function maybeShowPauseHint() {
   setTimeout(markSeen, 4000);
 }
 
+// Level data uses two naming schemes for bosses: campaign / Boss Rush say
+// 'dreadnought' / 'cyber_commander', endless sectors use the Enemy type
+// names directly. Both resolve to the Enemy constructor's type here.
+const BOSS_ENEMY_TYPES = {
+  dreadnought: 'boss', boss: 'boss',
+  cyber_commander: 'boss2', boss2: 'boss2',
+  sandworm: 'sandworm',
+  unicron: 'unicron'
+};
+
 function spawnCampaignForces(lvlData) {
   if (lvlData.bossType) {
     // Spawn designated sector boss Cruiser
-    enemies.push(new Enemy(CONFIG.width / 2 - 80, -120, lvlData.bossType === 'sandworm' ? 'sandworm' : lvlData.bossType === 'cyber_commander' ? 'boss2' : 'boss'));
+    const boss = new Enemy(0, -120, BOSS_ENEMY_TYPES[lvlData.bossType] || 'boss');
+    boss.x = CONFIG.width / 2 - boss.width / 2;
+    enemies.push(boss);
   } 
   else if (lvlData.enemyGrid) {
     const grid = lvlData.enemyGrid;
@@ -4846,8 +4901,6 @@ function spawnCampaignForces(lvlData) {
           type = 'heatSeeker';
         } else if (grid.swarmers && r === 0) {
           type = 'swarmer';
-        } else if (grid.kamikazes) {
-          type = 'kamikaze';
         } else if (grid.lightCycles && Math.random() < 0.38) {
           type = 'lightCycle';
         } else if (grid.shieldBlockers && Math.random() < 0.28) {
@@ -4856,6 +4909,12 @@ function spawnCampaignForces(lvlData) {
           type = 'sniper';
         } else if (grid.sentries && r === 0) {
           type = 'sentry';
+        } else if (grid.kamikazes && (!grid.scouts || Math.random() < 0.4)) {
+          // Kamikazes used to be an unconditional catch-all above the
+          // specialty types, so on any kamikaze grid light cycles, shield
+          // blockers, snipers, sentries and scouts never spawned. Now they
+          // fill every slot only on kamikaze-only grids (scouts: false).
+          type = 'kamikaze';
         }
 
         enemies.push(new Enemy(x, y - 250, type, c * 0.45));
@@ -5081,7 +5140,8 @@ function updateGame(dt) {
       
       // Update light cycle trail
       if (!enemy.trailTimer) enemy.trailTimer = 0;
-      enemy.trailTimer += dt * mult;
+      // EMP-stunned cycles stop laying trail (existing segments still burn).
+      if (!(enemy.stunTimer > 0)) enemy.trailTimer += dt * mult;
       if (enemy.trailTimer >= 100) {
         if (!enemy.trail) enemy.trail = [];
         enemy.trail.push({
@@ -5131,7 +5191,9 @@ function updateGame(dt) {
     if (enemy.type === 'sentry') {
       let mult = bulletTimeActive ? 0.4 : 1.0;
       
-      if (player && gameActive && !gamePaused) {
+      // Stunned sentries hold fire — Enemy.update's stun gate doesn't cover
+      // this block, so an EMP'd turret used to keep firing every 180 ms.
+      if (player && gameActive && !gamePaused && !(enemy.stunTimer > 0)) {
         const sx = enemy.x + enemy.width / 2;
         const sy = enemy.y + enemy.height / 2;
         const px = player.x + player.width / 2;
@@ -5215,7 +5277,10 @@ function updateGame(dt) {
   // Check Collisions
   if (gameActive) {
     handleCollisions();
-    handleWaveSpawning(dt);
+    // Re-check: a fatal hit in handleCollisions clears gameActive. Without
+    // this, killing the last asteroid by ramming it also passed the
+    // level-clear check, opening the hangar and game-over screens together.
+    if (gameActive) handleWaveSpawning(dt);
   }
 }
 
@@ -5258,8 +5323,8 @@ function startGame() {
   score = 0;
   currentLevel = 1;
   scrapCredits = 0;
-  maxHealth = 100;
-  health = 100;
+  maxHealth = getBaseMaxHealth();
+  health = maxHealth;
 
   // Fresh run: clear the cheat-taint flag, then taint immediately if god
   // mode (invincibility) is enabled — that's an unfair scoring advantage,
@@ -5283,7 +5348,14 @@ function startGame() {
   // Reset per-run achievement scratch state. Cross-run counters (totals,
   // skinsTried, unlocked set) survive untouched — only the per-run
   // upgrade-types set and damage / scrap counters get cleared.
-  if (window.Achievements) Achievements.startRun(selectedDifficulty);
+  if (window.Achievements) {
+    Achievements.startRun(selectedDifficulty);
+    // Flying a skin counts as trying it. The default Cyber Cyan is pre-
+    // selected on load, so without this it only counted if the player
+    // re-clicked the already-active button — Art Collector was unreachable
+    // for anyone who never did.
+    Achievements.notify('skin_selected', { skin: selectedSkin });
+  }
   if (window.Stats) Stats.notify('run_started', { skin: selectedSkin });
 
   // Wipe any lingering combo from a previous run so the new run starts at ×1.
@@ -5571,11 +5643,64 @@ function updateHud(dt) {
    ---------------------------------------------------- */
 
 /* ----------------------------------------------------
+   RUN ENTRY POINTS (menu buttons + RESTART)
+   ---------------------------------------------------- */
+function startCampaignRun() {
+  // Clean handoff: any prior mode (daily / boss rush) is cleared so the
+  // next INITIATE GAME is a vanilla campaign.
+  dailyMode = false;
+  dailyDate = null;
+  deactivateDailySeed();
+  bossRushMode = false;
+  bossRushIndex = 0;
+  startGame();
+}
+
+function startDailyRun() {
+  // Daily Challenge: seed Math.random with today's UTC date so every
+  // pilot today faces the same spawn timings, asteroid drops, etc.
+  // Difficulty is locked to Hero for fairness.
+  dailyMode = true;
+  dailyDate = todayDateUTC();
+  activateDailySeed(dailyDate);
+  bossRushMode = false;
+  bossRushIndex = 0;
+  selectedDifficulty = 'hero';
+  document.querySelectorAll('.diff-btn').forEach(b => {
+    b.classList.toggle('active', b.getAttribute('data-diff') === 'hero');
+  });
+  if (window.Achievements) Achievements.notify('daily_started', { date: dailyDate });
+  startGame();
+}
+
+function startBossRushRun() {
+  // Boss Rush: 4 bosses back-to-back, no shop, no continues. Other modes
+  // get cleared so this is a pure gauntlet.
+  bossRushMode = true;
+  bossRushIndex = 0;
+  dailyMode = false;
+  dailyDate = null;
+  deactivateDailySeed();
+  startGame();
+}
+
+/* ----------------------------------------------------
    LEADERBOARD STORAGE HANDLERS
    ---------------------------------------------------- */
 function getLeaderboard() {
-  let board = localStorage.getItem('neon_striker_high_scores');
-  if (!board) {
+  let board = null;
+  try {
+    const raw = localStorage.getItem('neon_striker_high_scores');
+    if (raw) board = JSON.parse(raw);
+  } catch (e) {
+    board = null;
+  }
+  if (Array.isArray(board)) {
+    // Drop malformed rows — including the score:null entries the old
+    // HatchingPod NaN-score bug wrote (JSON.stringify turns NaN into null).
+    board = board.filter(r => r && typeof r.name === 'string' && Number.isFinite(r.score));
+  }
+  if (!Array.isArray(board) || board.length === 0) {
     board = [
       { name: 'CPU', score: 85000 },
       { name: 'DM2', score: 62000 },
@@ -5583,9 +5708,9 @@ function getLeaderboard() {
       { name: 'ADA', score: 35000 },
       { name: 'SYN', score: 20000 }
     ];
-    localStorage.setItem('neon_striker_high_scores', JSON.stringify(board));
-  } else {
-    board = JSON.parse(board);
+    try {
+      localStorage.setItem('neon_striker_high_scores', JSON.stringify(board));
+    } catch (e) { /* storage blocked — the in-memory defaults still work */ }
   }
   return board.sort((a, b) => b.score - a.score);
 }
@@ -5630,7 +5755,13 @@ function setLeaderboardScope(scope) {
   updateLeaderboardUI();
 }
 
+// Bumped per updateLeaderboardUI call; an await that resolves after a newer
+// call started (fast Today/All-Time tab switching) bails instead of drawing
+// its rows under the wrong tab.
+let leaderboardRequestId = 0;
+
 async function updateLeaderboardUI() {
+  const requestId = ++leaderboardRequestId;
   const body = document.getElementById('leaderboard-body');
   body.innerHTML = '';
 
@@ -5662,6 +5793,10 @@ async function updateLeaderboardUI() {
     }
     try {
       const dailyScores = await window.getDailyHighScores(todayDateUTC());
+      if (requestId !== leaderboardRequestId) return;
+      // getDailyHighScores swallows its own errors and returns null, so
+      // surface that as the unreachable state rather than "no runs yet".
+      if (dailyScores === null) throw new Error('daily board fetch failed');
       body.innerHTML = '';
       if (dailyScores && dailyScores.length > 0) {
         dailyScores.forEach((record, index) => {
@@ -5679,6 +5814,7 @@ async function updateLeaderboardUI() {
         body.append(tr);
       }
     } catch (e) {
+      if (requestId !== leaderboardRequestId) return;
       console.warn('Failed to load daily scores:', e);
       // Replace the loading shimmer with a real error state — previously a
       // failed fetch left '🌙 LOADING TODAY'S RUNS...' blinking forever.
@@ -5700,6 +5836,7 @@ async function updateLeaderboardUI() {
   if (window.firebaseEnabled) {
     try {
       const globalScores = await window.getGlobalHighScores();
+      if (requestId !== leaderboardRequestId) return;
       if (globalScores && globalScores.length > 0) {
         body.innerHTML = '';
         globalScores.forEach((record, index) => {
@@ -5712,6 +5849,7 @@ async function updateLeaderboardUI() {
         return;
       }
     } catch (e) {
+      if (requestId !== leaderboardRequestId) return;
       console.warn("Failed to load Firebase scores, falling back to browser archives:", e);
     }
   }
@@ -5839,13 +5977,15 @@ window.addEventListener('load', () => {
   applyPersistedSettings(loadPersistedSettings());
 
   window.addEventListener('keydown', e => {
-    if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
-      e.preventDefault();
-    }
     // Don't intercept M / P while the cheat-code input is focused — typing
     // 'matrix' or any code containing those letters would otherwise mute or
     // pause the game underneath the modal.
     const typingInForm = e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA');
+    // Block page scroll on game keys, but not inside text fields — there
+    // Space and the arrows must type a space / move the caret.
+    if (!typingInForm && ['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
+      e.preventDefault();
+    }
     // Record a one-shot edge only on the initial press, not on key-repeat,
     // so a held Shift on Matrix levels doesn't auto-trigger EMP every frame.
     if (!keys[e.code]) {
@@ -5872,42 +6012,9 @@ window.addEventListener('load', () => {
   });
 
   // UI Button listener hooks
-  document.getElementById('btn-start').addEventListener('click', () => {
-    // Clean handoff: any prior mode (daily / boss rush) is cleared so the
-    // next INITIATE GAME is a vanilla campaign.
-    dailyMode = false;
-    dailyDate = null;
-    deactivateDailySeed();
-    bossRushMode = false;
-    bossRushIndex = 0;
-    startGame();
-  });
-
-  document.getElementById('btn-daily').addEventListener('click', () => {
-    // Daily Challenge: seed Math.random with today's UTC date so every
-    // pilot today faces the same spawn timings, asteroid drops, etc.
-    // Difficulty is locked to Hero for fairness.
-    dailyMode = true;
-    dailyDate = todayDateUTC();
-    activateDailySeed(dailyDate);
-    selectedDifficulty = 'hero';
-    document.querySelectorAll('.diff-btn').forEach(b => {
-      b.classList.toggle('active', b.getAttribute('data-diff') === 'hero');
-    });
-    if (window.Achievements) Achievements.notify('daily_started', { date: dailyDate });
-    startGame();
-  });
-
-  document.getElementById('btn-bossrush').addEventListener('click', () => {
-    // Boss Rush: 4 bosses back-to-back, no shop, no continues. Other modes
-    // get cleared so this is a pure gauntlet.
-    bossRushMode = true;
-    bossRushIndex = 0;
-    dailyMode = false;
-    dailyDate = null;
-    deactivateDailySeed();
-    startGame();
-  });
+  document.getElementById('btn-start').addEventListener('click', startCampaignRun);
+  document.getElementById('btn-daily').addEventListener('click', startDailyRun);
+  document.getElementById('btn-bossrush').addEventListener('click', startBossRushRun);
 
   document.getElementById('btn-settings').addEventListener('click', () => {
     document.getElementById('start-menu').classList.add('hidden');
@@ -5964,7 +6071,12 @@ window.addEventListener('load', () => {
   }
 
   document.getElementById('btn-restart').addEventListener('click', () => {
-    startGame();
+    // Replay through the same entry point the finished run used, so Boss
+    // Rush restarts at boss 1 and a Daily retry is re-seeded rather than
+    // playing unseeded spawns that still post to the daily board.
+    if (bossRushMode) startBossRushRun();
+    else if (dailyMode) startDailyRun();
+    else startCampaignRun();
   });
 
   document.getElementById('btn-continue').addEventListener('click', () => {
@@ -6083,7 +6195,7 @@ window.addEventListener('load', () => {
       }
       
       // Permanently adjust ship shielding pools
-      maxHealth = 100 + (playerUpgrades.shield - 1) * 20;
+      maxHealth = getBaseMaxHealth() + (playerUpgrades.shield - 1) * 20;
       health = maxHealth; // Heal completely
       
       GameAudio.playPowerUpSound();

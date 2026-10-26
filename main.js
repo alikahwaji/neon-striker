@@ -99,7 +99,8 @@ function triggerLevelClear() {
   if (bossRushMode) {
     bossRushIndex++;
     if (bossRushIndex >= BOSS_RUSH_SEQUENCE.length) {
-      if (window.Achievements) Achievements.notify('boss_rush_completed', {});
+      // Cheat-assisted (tainted) gauntlets don't earn GLADIATOR.
+      if (window.Achievements && !runTainted) Achievements.notify('boss_rush_completed', {});
       // Quick beat before showing the game-over panel so the level-clear
       // chime gets to play out.
       setTimeout(() => showGameOverScreen(), 1500);
@@ -352,10 +353,22 @@ function maybeShowPauseHint() {
   setTimeout(markSeen, 4000);
 }
 
+// Level data uses two naming schemes for bosses: campaign / Boss Rush say
+// 'dreadnought' / 'cyber_commander', endless sectors use the Enemy type
+// names directly. Both resolve to the Enemy constructor's type here.
+const BOSS_ENEMY_TYPES = {
+  dreadnought: 'boss', boss: 'boss',
+  cyber_commander: 'boss2', boss2: 'boss2',
+  sandworm: 'sandworm',
+  unicron: 'unicron'
+};
+
 function spawnCampaignForces(lvlData) {
   if (lvlData.bossType) {
     // Spawn designated sector boss Cruiser
-    enemies.push(new Enemy(CONFIG.width / 2 - 80, -120, lvlData.bossType === 'sandworm' ? 'sandworm' : lvlData.bossType === 'cyber_commander' ? 'boss2' : 'boss'));
+    const boss = new Enemy(0, -120, BOSS_ENEMY_TYPES[lvlData.bossType] || 'boss');
+    boss.x = CONFIG.width / 2 - boss.width / 2;
+    enemies.push(boss);
   } 
   else if (lvlData.enemyGrid) {
     const grid = lvlData.enemyGrid;
@@ -375,8 +388,6 @@ function spawnCampaignForces(lvlData) {
           type = 'heatSeeker';
         } else if (grid.swarmers && r === 0) {
           type = 'swarmer';
-        } else if (grid.kamikazes) {
-          type = 'kamikaze';
         } else if (grid.lightCycles && Math.random() < 0.38) {
           type = 'lightCycle';
         } else if (grid.shieldBlockers && Math.random() < 0.28) {
@@ -385,6 +396,12 @@ function spawnCampaignForces(lvlData) {
           type = 'sniper';
         } else if (grid.sentries && r === 0) {
           type = 'sentry';
+        } else if (grid.kamikazes && (!grid.scouts || Math.random() < 0.4)) {
+          // Kamikazes used to be an unconditional catch-all above the
+          // specialty types, so on any kamikaze grid light cycles, shield
+          // blockers, snipers, sentries and scouts never spawned. Now they
+          // fill every slot only on kamikaze-only grids (scouts: false).
+          type = 'kamikaze';
         }
 
         enemies.push(new Enemy(x, y - 250, type, c * 0.45));
@@ -610,7 +627,8 @@ function updateGame(dt) {
       
       // Update light cycle trail
       if (!enemy.trailTimer) enemy.trailTimer = 0;
-      enemy.trailTimer += dt * mult;
+      // EMP-stunned cycles stop laying trail (existing segments still burn).
+      if (!(enemy.stunTimer > 0)) enemy.trailTimer += dt * mult;
       if (enemy.trailTimer >= 100) {
         if (!enemy.trail) enemy.trail = [];
         enemy.trail.push({
@@ -660,7 +678,9 @@ function updateGame(dt) {
     if (enemy.type === 'sentry') {
       let mult = bulletTimeActive ? 0.4 : 1.0;
       
-      if (player && gameActive && !gamePaused) {
+      // Stunned sentries hold fire — Enemy.update's stun gate doesn't cover
+      // this block, so an EMP'd turret used to keep firing every 180 ms.
+      if (player && gameActive && !gamePaused && !(enemy.stunTimer > 0)) {
         const sx = enemy.x + enemy.width / 2;
         const sy = enemy.y + enemy.height / 2;
         const px = player.x + player.width / 2;
@@ -744,7 +764,10 @@ function updateGame(dt) {
   // Check Collisions
   if (gameActive) {
     handleCollisions();
-    handleWaveSpawning(dt);
+    // Re-check: a fatal hit in handleCollisions clears gameActive. Without
+    // this, killing the last asteroid by ramming it also passed the
+    // level-clear check, opening the hangar and game-over screens together.
+    if (gameActive) handleWaveSpawning(dt);
   }
 }
 
@@ -787,8 +810,8 @@ function startGame() {
   score = 0;
   currentLevel = 1;
   scrapCredits = 0;
-  maxHealth = 100;
-  health = 100;
+  maxHealth = getBaseMaxHealth();
+  health = maxHealth;
 
   // Fresh run: clear the cheat-taint flag, then taint immediately if god
   // mode (invincibility) is enabled — that's an unfair scoring advantage,
@@ -812,7 +835,14 @@ function startGame() {
   // Reset per-run achievement scratch state. Cross-run counters (totals,
   // skinsTried, unlocked set) survive untouched — only the per-run
   // upgrade-types set and damage / scrap counters get cleared.
-  if (window.Achievements) Achievements.startRun(selectedDifficulty);
+  if (window.Achievements) {
+    Achievements.startRun(selectedDifficulty);
+    // Flying a skin counts as trying it. The default Cyber Cyan is pre-
+    // selected on load, so without this it only counted if the player
+    // re-clicked the already-active button — Art Collector was unreachable
+    // for anyone who never did.
+    Achievements.notify('skin_selected', { skin: selectedSkin });
+  }
   if (window.Stats) Stats.notify('run_started', { skin: selectedSkin });
 
   // Wipe any lingering combo from a previous run so the new run starts at ×1.

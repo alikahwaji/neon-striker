@@ -400,6 +400,14 @@ function spawnFacehuggerDrones(x, y) {
 
 function damagePlayer(amount) {
   if (cheatGod) {
+    // A hit absorbed by god mode still counts as "hit" for the damage-free
+    // rewards, or invincibility would farm Untouchable and the PERFECT
+    // SECTOR bonus every level. Skip during i-frames so a single overlap
+    // isn't reported every frame.
+    if (player.invulnFrames <= 0) {
+      levelDamageTaken = true;
+      if (window.Achievements) Achievements.notify('damage_taken', { amount });
+    }
     floatingTexts.push(new FloatingText(player.x + player.width / 2, player.y - 20, 'GOD MODE ACTIVE', '#ffffff'));
     GameAudio.playPowerUpSound();
     player.invulnFrames = 30;
@@ -459,8 +467,10 @@ function applyPowerUp(type) {
         
         // Add credits
         scrapItems.push(new ScrapCredit(enemy.x + enemy.width/2, enemy.y + enemy.height/2));
-      } else {
-        enemy.takeDamage(25);
+      } else if (enemy.takeDamage(25)) {
+        // Same kill path as a laser: the old code ignored this return, so a
+        // boss bombed to <=0 HP kept fighting until hit again.
+        destroyEnemy(enemy, e);
       }
     }
     enemyLasers = [];
