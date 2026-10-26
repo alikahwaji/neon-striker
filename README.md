@@ -92,7 +92,7 @@ On-screen controls appear automatically on touch devices, only while you're flyi
 | **⏱** (Matrix sector only) | Hold for bullet time |
 | **PAUSE** (HUD, top) | Pause / resume |
 
-Move and fire at the same time with two thumbs. Hits, BOMBs and EMPs buzz the phone where the browser supports vibration (Android Chrome), following **Screen Vibration**.
+Move and fire at the same time with two thumbs. Holding the phone upright? The play view moves to the top of the screen with the score bar above it and the shield bar below, the controls take the space underneath (so your thumbs never cover the action), and menus and the hangar use the full screen height. Hits, BOMBs and EMPs buzz the phone where the browser supports vibration (Android Chrome), following **Screen Vibration**.
 
 ---
 

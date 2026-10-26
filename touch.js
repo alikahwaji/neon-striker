@@ -14,6 +14,7 @@
      Pause          the HUD's existing PAUSE button (stays tappable: the
                     touch layer sits under the HUD at z-index 2)
 
+   In portrait the controls move below the play view (updateTouchLayout).
    The layer is only visible during active gameplay; menus, the hangar
    and game over use ordinary taps on their HTML buttons. Uses pointer
    events, so multi-touch (move + fire) works and each control tracks its
@@ -33,7 +34,24 @@ let touchLayerShown = false;
 function enableTouchControls() {
   if (touchEnabled) return;
   touchEnabled = true;
+  // html.touch-device hides keyboard-only hints (PILOT COMMANDS key grid,
+  // the "P to pause" toast) in styles.css.
+  document.documentElement.classList.add('touch-device');
   buildTouchControls();
+  updateTouchLayout();
+  window.addEventListener('resize', updateTouchLayout);
+  window.addEventListener('orientationchange', updateTouchLayout);
+}
+
+// Portrait phones: a 4:3 game box only fills ~1/3 of a tall screen, the
+// thumbs cover it, and menus get squeezed into it. html.touch-portrait
+// (styles.css) makes the container full-screen: the 4:3 play view (canvas
+// + HUD) sits at the top, the touch controls get the free space below
+// it, and menus / hangar use the whole height. Landscape and desktop are
+// unchanged.
+function updateTouchLayout() {
+  const portrait = touchEnabled && window.innerHeight > window.innerWidth;
+  document.documentElement.classList.toggle('touch-portrait', portrait);
 }
 
 function buildTouchControls() {

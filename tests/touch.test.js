@@ -195,3 +195,19 @@ test('a hold button still works when pointer capture throws', () => {
   handlers.pointerup({ pointerId: 7 });
   assert.equal(T.keys.TouchFire, false);
 });
+
+test('portrait layout class follows orientation, only in touch mode', () => {
+  const { T, ctx } = setup();
+  const root = fakeEl();
+  ctx.document.documentElement = root;
+  ctx.innerWidth = 440; ctx.innerHeight = 956;      // iPhone portrait
+  T.updateTouchLayout();
+  assert.ok(root.classList.has('touch-portrait'));
+  ctx.innerWidth = 956; ctx.innerHeight = 440;      // rotated to landscape
+  T.updateTouchLayout();
+  assert.ok(!root.classList.has('touch-portrait'));
+  T.touchEnabled = false;                           // desktop: never
+  ctx.innerWidth = 440; ctx.innerHeight = 956;
+  T.updateTouchLayout();
+  assert.ok(!root.classList.has('touch-portrait'));
+});

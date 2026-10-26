@@ -1959,3 +1959,144 @@ button {
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }
+
+/* ----------------------------------------------------
+   PORTRAIT TOUCH LAYOUT (html.touch-portrait, set by touch.js)
+   ----------------------------------------------------
+   Touch device held upright. Instead of a small 4:3 box floating in the
+   middle of the screen:
+     - the game container fills the screen,
+     - the 4:3 play view (canvas + HUD) sits at the top,
+     - the touch controls take the free space below it, so thumbs never
+       cover the playfield,
+     - menus / hangar / game over overlay the full height instead of
+       being squeezed into the 4:3 box.
+   Landscape and desktop are untouched. dvh tracks the visible height on
+   mobile browsers (100vh includes the collapsing URL bar). */
+html.touch-portrait {
+  --hud-strip: 58px;                 /* score bar above the play view */
+  --shield-strip: 46px;              /* shield / EMP bars below it */
+  --play-top: var(--hud-strip);
+  --play-h: calc(100vw * 3 / 4);
+  --controls-top: calc(var(--play-top) + var(--play-h) + var(--shield-strip));
+}
+
+html.touch-portrait .crt-screen {
+  height: 100vh;
+  height: 100dvh;
+}
+
+html.touch-portrait .game-container {
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  aspect-ratio: auto;
+  border: none !important;          /* CRT bezel would frame the whole phone */
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+html.touch-portrait #gameCanvas {
+  top: var(--play-top);
+  height: var(--play-h);
+}
+
+/* The HUD moves off the playfield: in a 330px-tall play view it covered
+   half the screen. Its top bar sits in the strip above the canvas and its
+   bottom bar (shield / EMP) in the strip below, via the overlay's existing
+   space-between column. */
+html.touch-portrait .hud-overlay {
+  top: 0;
+  height: var(--controls-top);
+  padding: 6px 8px;
+}
+
+html.touch-portrait .hud-top {
+  gap: 4px;
+  align-items: stretch;
+}
+
+html.touch-portrait .hud-score-panel,
+html.touch-portrait .hud-wave-panel,
+html.touch-portrait .hud-high-panel,
+html.touch-portrait .hud-scrap-panel,
+html.touch-portrait .hud-pause-btn-panel {
+  padding: 4px 6px;
+  min-width: 0;
+}
+
+html.touch-portrait .hud-label {
+  font-size: 0.5rem;
+  letter-spacing: 0.08em;
+  margin-bottom: 2px;
+  white-space: nowrap;
+}
+
+html.touch-portrait .hud-value {
+  font-size: 0.95rem;
+  white-space: nowrap;
+}
+
+html.touch-portrait .hud-health-container {
+  width: 58%;
+  padding: 4px 8px;
+}
+
+html.touch-portrait .hud-emp-container {
+  width: 36%;
+  padding: 4px 8px;
+  margin-left: auto;
+}
+
+/* Combo chip floats just inside the top of the play view instead of
+   squeezing a sixth panel into the score bar. */
+html.touch-portrait .hud-combo-chip {
+  position: absolute;
+  top: calc(var(--play-top) + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+}
+
+html.touch-portrait .touch-controls {
+  top: var(--controls-top);
+  border-top: 1px solid rgba(0, 240, 255, 0.18);
+}
+
+/* The control area is its own region now, so the buttons no longer need
+   to clear the HUD's bottom strip. */
+html.touch-portrait .touch-buttons {
+  bottom: 8%;
+  right: 5%;
+}
+
+html.touch-portrait .touch-stick-zone {
+  width: 58%;
+}
+
+/* Base-hit glow belongs on the play view's bottom edge, not the bottom of
+   the screen (where the controls are now). */
+html.touch-portrait .game-container.base-hit-flash,
+html.reduce-motion.touch-portrait .game-container.base-hit-flash {
+  animation: none !important;
+}
+html.touch-portrait .game-container.base-hit-flash .hud-overlay {
+  animation: base-hit-pulse 0.38s ease-out !important;
+}
+
+/* Hangar: keep LAUNCH FIGHTER on screen while the upgrade list scrolls
+   (the list is ~2 screens tall on a portrait phone). */
+html.touch-portrait #shop-menu > div:last-child {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  margin-top: 1rem !important;
+  padding: 0.75rem 0 1rem;
+  background: linear-gradient(to bottom, rgba(5, 3, 15, 0), rgba(5, 3, 15, 0.95) 35%);
+}
+
+/* Keyboard-only hints mean nothing on a phone. */
+html.touch-device .how-to-play,
+html.touch-device .pause-hint-toast {
+  display: none !important;
+}
