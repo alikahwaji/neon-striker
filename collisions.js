@@ -38,11 +38,19 @@ function spawnDebris(x, y, color) {
   }
 }
 
+// Freeze the simulation for `ms` (the longest pending stop wins). Used
+// sparingly — boss kills, bombs, EMP, taking a hit — never for routine
+// kills, which happen constantly and would make the game stutter.
+function hitStop(ms) {
+  hitStopTimer = Math.max(hitStopTimer, ms);
+}
+
 function triggerPlayerEMP() {
   if (!player) return;
   empShockwaves.push(new EMPShockwave(player.x + player.width / 2, player.y + player.height / 2));
   empCooldownTimer = 8000; // 8 seconds cooldown
   padRumble(0.6, 0.9, 260);
+  hitStop(50);
 }
 
 // Average distance of an asteroid's drawn outline from its centre, as a
@@ -77,6 +85,7 @@ function laserHitsShip(laser, ship) {
 // escape check in main.js). Otherwise shooting a rock made things worse:
 // one large escaping costs 10, its seven fragments could cost 70.
 function splitAsteroid(ast) {
+  spawnImpactBurst(ast.x, ast.y, ast.color, ast.radius);
   let pieces = [];
   if (ast.size === 'large') {
     pieces = [new Asteroid(ast.x - 15, ast.y, 'medium', -1.2, ast.vy + 0.3),
@@ -111,11 +120,13 @@ function destroyEnemy(enemy, eIndex) {
   // Pre-computed isBoss flag (set once in Enemy ctor) replaces the
   // 4× repeated `startsWith('boss') || === 'unicron'` string scans below.
   const big = enemy.isBoss;
+  if (big) hitStop(140);
   GameAudio.playExplosionSound(big ? 2.2 : 0.85);
   triggerScreenShake(big ? 0.9 : 0.25);
 
   spawnExplosionParticles(enemy.x + enemy.width/2, enemy.y + enemy.height/2, enemy.color, big ? 60 : 15);
   spawnDebris(enemy.x + enemy.width/2, enemy.y + enemy.height/2, enemy.color);
+  spawnImpactBurst(enemy.x + enemy.width/2, enemy.y + enemy.height/2, enemy.color, big ? 120 : enemy.width);
 
   // Egg Hatch facehugger drones! (Level 12 Alien)
   if (enemy instanceof HatchingPod) {
@@ -478,6 +489,7 @@ function damagePlayer(amount) {
   health = Math.max(0, health - amount);
   triggerScreenShake(0.5);
   padRumble(0.8, 0.5, 180);
+  hitStop(60);
   GameAudio.playExplosionSound(0.8);
   spawnExplosionParticles(player.x + player.width / 2, player.y + player.height / 2, '#ff003c', 15);
   player.invulnFrames = 60;
@@ -494,6 +506,7 @@ function applyPowerUp(type) {
   if (type === 'BOMB') {
     triggerScreenShake(1.0);
     padRumble(1.0, 1.0, 400);
+    hitStop(80);
     GameAudio.playBombSound();
     
     for (let e = enemies.length - 1; e >= 0; e--) {
@@ -531,6 +544,30 @@ function spawnSparkParticles(x, y, color) {
   }
 }
 
+// Explosion accents: an expanding shockwave ring plus fast spark streaks.
+// size: radius-ish scale of the thing that blew up (enemy width, rock
+// radius, boss ~ 120). Rings are capped so a bomb clearing a full grid
+// doesn't stack dozens of them.
+const MAX_IMPACT_RINGS = 24;
+function spawnImpactBurst(x, y, color, size) {
+  if (impactRings.length < MAX_IMPACT_RINGS) {
+    impactRings.push(new ImpactRing(x, y, color, Math.min(160, size * 1.6)));
+  }
+  const streaks = size > 80 ? 14 : 6;
+  for (let i = 0; i < streaks; i++) {
+    const p = new Particle(x, y, i % 2 ? '#ffffff' : color);
+    const angle = Math.random() * Math.PI * 2;
+    const speed = Math.random() * 5 + 4;
+    p.vx = Math.cos(angle) * speed;
+    p.vy = Math.sin(angle) * speed;
+    p.gravity = 0.02;
+    p.decay = 0.045;
+    p.radius = 1.4;
+    p.streak = true;
+    particles.push(p);
+  }
+}
+
 function spawnExplosionParticles(x, y, color, count = 15) {
   for (let i = 0; i < count; i++) {
     particles.push(new Particle(x, y, color));
@@ -543,6 +580,7 @@ function triggerPlayerExplosion() {
   GameAudio.playBombSound();
   spawnExplosionParticles(player.x + player.width / 2, player.y + player.height / 2, '#00f0ff', 50);
   spawnExplosionParticles(player.x + player.width / 2, player.y + player.height / 2, '#ff00aa', 30);
+  spawnImpactBurst(player.x + player.width / 2, player.y + player.height / 2, '#00f0ff', 120);
   
   setTimeout(() => {
     showGameOverScreen();

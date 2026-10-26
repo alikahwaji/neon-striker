@@ -183,6 +183,14 @@ let criticalHeartbeatTimer = 0;
 // so cross-effect animations stay phase-locked. */
 let frameNow = 0;
 
+// Hit-stop: brief freeze of the simulation (rendering continues) to give
+// big impacts weight. Set via hitStop(ms) in collisions.js.
+let hitStopTimer = 0;
+
+// Boss intro banner (render.js drawBossIntro): ms remaining + title.
+let bossIntroTimer = 0;
+let bossIntroName = '';
+
 // Monotonic ID counter for entities that need cheap O(1) dedup keys.
 // Used by piercing-laser collision tracking: instead of allocating a
 // new Set() per pierce-laser to remember "did I hit this enemy already?",
@@ -242,6 +250,7 @@ let wallTurrets = [];
 let wingmanDrones = [];
 let empShockwaves = [];
 let debrisList = [];
+let impactRings = [];   // expanding explosion shockwave rings (ImpactRing)
 let empCooldownTimer = 0;
 let bulletTimeActive = false;
 let matrixStreams = [];

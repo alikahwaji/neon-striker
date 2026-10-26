@@ -988,6 +988,7 @@ body {
 }
 
 .hud-health-bar-bg {
+  position: relative;
   width: 100%;
   height: 12px;
   background: rgba(255, 255, 255, 0.1);
@@ -996,7 +997,19 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
+/* Damage trail: the shield lost in the last hit, shown as a pale segment
+   that drains after a short hold (updateHud in main.js). */
+.hud-health-trail {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.55);
+}
+
 .hud-health-fill {
+  position: relative;
   height: 100%;
   width: 100%;
   background: var(--neon-green);

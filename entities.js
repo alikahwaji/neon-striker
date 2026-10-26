@@ -34,6 +34,8 @@ function strokeWithHalo() {
 const SENTRY_MOUNT_Y = 60;
 const SENTRY_ENTRY_SPEED = 2.5;
 
+const ENEMY_HIT_FLASH_MS = 90;
+
 // Player Space Fighter Class
 class PlayerShip {
   constructor() {
@@ -842,6 +844,7 @@ class Enemy {
   }
 
   update(dt) {
+    if (this.hitFlash > 0) this.hitFlash -= dt;
     if (this.stunTimer > 0) {
       this.stunTimer -= dt;
       return;
@@ -1118,6 +1121,11 @@ class Enemy {
   }
 
   draw() {
+    // Hit flash: draw the whole hull white for a moment after a non-lethal
+    // hit (takeDamage), so every hit reads even when the damage number is
+    // lost in a fight. Restored at the end of draw().
+    const baseColor = this.color;
+    if (this.hitFlash > 0) this.color = '#ffffff';
     ctx.save();
     ctx.globalAlpha = this.alpha;
     // Bosses (one at a time) keep the real blur; the rest of the grid uses
@@ -1439,6 +1447,7 @@ class Enemy {
     }
 
     ctx.restore();
+    this.color = baseColor;
   }
 
   takeDamage(amount) {
@@ -1455,8 +1464,41 @@ class Enemy {
     if (this.health <= 0) {
       return true;
     }
+    this.hitFlash = ENEMY_HIT_FLASH_MS; // drawn white briefly (Enemy.draw)
     GameAudio.playHitSound();
     return false;
+  }
+}
+
+// Expanding shockwave ring for explosions. Cheap: one halo-stroked arc per
+// ring (no shadowBlur), short-lived, and capped (MAX_IMPACT_RINGS).
+class ImpactRing {
+  constructor(x, y, color, maxRadius) {
+    this.x = x;
+    this.y = y;
+    this.color = color;
+    this.maxRadius = maxRadius;
+    this.age = 0;
+    this.life = 380; // ms
+  }
+
+  update(dt) {
+    this.age += dt || 16.667;
+  }
+
+  get done() { return this.age >= this.life; }
+
+  draw() {
+    const t = Math.min(1, this.age / this.life);
+    const eased = 1 - (1 - t) * (1 - t); // fast out, slow settle
+    ctx.save();
+    ctx.globalAlpha = (1 - t) * 0.9;
+    ctx.strokeStyle = this.color;
+    ctx.lineWidth = Math.max(0.5, 3.5 * (1 - t));
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, 6 + eased * this.maxRadius, 0, Math.PI * 2);
+    strokeWithHalo();
+    ctx.restore();
   }
 }
 
@@ -1788,6 +1830,7 @@ class Particle {
     this.alpha = 1.0;
     this.decay = Math.random() * 0.02 + 0.015;
     this.gravity = 0.06;
+    this.streak = false; // spark streak: drawn as a short line along its velocity
   }
 
   update(dt) {
@@ -1802,6 +1845,23 @@ class Particle {
   }
 
   draw() {
+    if (this.streak) {
+      // Spark streak: a short line trailing behind the particle's motion,
+      // halo + core like the dots (no shadowBlur).
+      ctx.strokeStyle = this.color;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(this.x, this.y);
+      ctx.lineTo(this.x - this.vx * 2.6, this.y - this.vy * 2.6);
+      ctx.globalAlpha = this.alpha * 0.3;
+      ctx.lineWidth = this.radius * 3;
+      ctx.stroke();
+      ctx.globalAlpha = this.alpha;
+      ctx.lineWidth = this.radius;
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+      return;
+    }
     // Pseudo-glow without shadowBlur: a soft halo at lower alpha behind
     // a bright core. Visually similar to a shadowBlur=6 fill but ~10×
     // cheaper — shadowBlur forces an offscreen rasterise + Gaussian

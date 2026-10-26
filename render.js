@@ -443,6 +443,7 @@ function drawGame() {
 
   // Draw Vector Debris under ships/lasers for clean layering
   debrisList.forEach(debris => debris.draw());
+  impactRings.forEach(ring => ring.draw());
 
   // Draw EMP Shockwaves
   empShockwaves.forEach(emp => emp.draw());
@@ -481,6 +482,67 @@ function drawGame() {
   if (player && health > 0) {
     player.draw();
   }
+
+  ctx.restore();
+
+  // Overlays drawn outside the camera-shake transform so they stay steady.
+  if (bossIntroTimer > 0) drawBossIntro();
+}
+
+// "WARNING" banner + boss name + red edge glow while a boss arrives.
+// No shadowBlur: text glow is a faint wide stroke under the fill. With
+// Reduced Motion the edge glow holds steady instead of pulsing.
+function drawBossIntro() {
+  const total = BOSS_INTRO_MS;
+  const elapsed = total - bossIntroTimer;
+  const fadeIn = Math.min(1, elapsed / 250);
+  const fadeOut = Math.min(1, bossIntroTimer / 400);
+  const a = Math.min(fadeIn, fadeOut);
+  const W = CONFIG.width, H = CONFIG.height;
+
+  ctx.save();
+
+  // Red edge glow (two side gradients + top/bottom)
+  const pulse = CONFIG.reducedMotion ? 0.6 : 0.45 + 0.35 * Math.abs(Math.sin(elapsed / 180));
+  const edge = 70;
+  const sides = [
+    [0, 0, edge, 0, 0, 0, edge, H],
+    [W, 0, W - edge, 0, W - edge, 0, edge, H],
+    [0, 0, 0, edge, 0, 0, W, edge],
+    [0, H, 0, H - edge, 0, H - edge, W, edge]
+  ];
+  for (const [x0, y0, x1, y1, rx, ry, rw, rh] of sides) {
+    const g = ctx.createLinearGradient(x0, y0, x1, y1);
+    g.addColorStop(0, `rgba(255, 0, 60, ${0.55 * pulse * a})`);
+    g.addColorStop(1, 'rgba(255, 0, 60, 0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(rx, ry, rw, rh);
+  }
+
+  // Banner band
+  const bandY = H * 0.36, bandH = 92;
+  ctx.globalAlpha = a;
+  ctx.fillStyle = 'rgba(10, 0, 6, 0.72)';
+  ctx.fillRect(0, bandY, W, bandH);
+  ctx.fillStyle = '#ff003c';
+  ctx.fillRect(0, bandY, W, 2);
+  ctx.fillRect(0, bandY + bandH - 2, W, 2);
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const glowText = (text, y, font, color) => {
+    ctx.font = font;
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = color;
+    ctx.globalAlpha = a * 0.25;
+    ctx.lineWidth = 8;
+    ctx.strokeText(text, W / 2, y);
+    ctx.globalAlpha = a;
+    ctx.fillStyle = color;
+    ctx.fillText(text, W / 2, y);
+  };
+  glowText('\u26A0  WARNING  \u26A0', bandY + 32, '900 30px Orbitron, sans-serif', '#ff003c');
+  glowText(bossIntroName, bandY + 66, '700 16px Orbitron, sans-serif', '#ffffff');
 
   ctx.restore();
 }
