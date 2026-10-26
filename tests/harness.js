@@ -79,7 +79,14 @@ const HOOK = `
   get padMoveX() { return padMoveX; }, get padMoveY() { return padMoveY; },
   get keys() { return keys; }, get keysPressed() { return keysPressed; },
   clearKeysPressed() { keysPressed = {}; },
-  set frameNow(v) { frameNow = v; }
+  set frameNow(v) { frameNow = v; },
+  setStickVector, updateTouchControls, releaseTouchInput, touchHaptic, wireHoldButton, updateTouchLayout,
+  get touchMoveX() { return touchMoveX; }, get touchMoveY() { return touchMoveY; },
+  set touchUi(v) { touchUi = v; }, set touchEnabled(v) { touchEnabled = v; },
+  setUpgrade(k, v) { playerUpgrades[k] = v; }, set empCooldownTimer(v) { empCooldownTimer = v; }, get empCooldownTimer() { return empCooldownTimer; },
+  get empShockwaveCount() { return empShockwaves.length; },
+  get bulletTimeActive() { return bulletTimeActive; },
+  setCheatMatrix(v) { cheatMatrix = v; }
 };
 `;
 

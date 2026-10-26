@@ -434,7 +434,7 @@ function updateGame(dt) {
 
   // Bullet-Time active checks in Level 17 Matrix theme:
   if (lvlData.theme === 'matrix' && gameActive && !gamePaused) {
-    bulletTimeActive = keys['ShiftLeft'] || keys['ShiftRight'] || keys['KeyE'] || keys['KeyQ'] || keys.PadBulletTime;
+    bulletTimeActive = keys['ShiftLeft'] || keys['ShiftRight'] || keys['KeyE'] || keys['KeyQ'] || keys.PadBulletTime || keys.TouchBulletTime;
   } else {
     bulletTimeActive = false;
   }
@@ -488,7 +488,7 @@ function updateGame(dt) {
     // the instant its cooldown hit zero with no way for the player to stop it.
     // Reading keysPressed instead means one press = at most one EMP attempt.
     if (playerUpgrades.emp > 0 && gameActive && !gamePaused && empCooldownTimer <= 0) {
-      if (keysPressed['KeyE'] || keysPressed['ShiftLeft'] || keysPressed['ShiftRight'] || keysPressed.PadEMP) {
+      if (keysPressed['KeyE'] || keysPressed['ShiftLeft'] || keysPressed['ShiftRight'] || keysPressed.PadEMP || keysPressed.TouchEMP) {
         triggerPlayerEMP();
       }
     }
@@ -800,6 +800,7 @@ function gameTick(timestamp) {
   // read before updateGame consumes them (and also while paused / in
   // menus, for Start-to-resume and menu navigation).
   pollGamepad();
+  updateTouchControls();
 
   if (gameActive && !gamePaused) {
     updateGame(dt);

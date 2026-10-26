@@ -1847,3 +1847,288 @@ button.pad-focus {
   outline-offset: 3px;
   box-shadow: 0 0 18px rgba(255, 255, 255, 0.55), 0 0 6px currentColor !important;
 }
+
+/* ----------------------------------------------------
+   TOUCH CONTROLS (touch.js)
+   ----------------------------------------------------
+   Built only on touch devices and shown only during active gameplay.
+   z-index 2: above the canvas (1), under the HUD (3, pointer-events none
+   except its PAUSE button) and the overlay panels (5). Sizes are % of the
+   playfield so the controls scale with the 4:3 container. */
+.touch-controls {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  touch-action: none;          /* no scroll / pinch-zoom while flying */
+  /* Size container: the buttons below use cqh (% of the playfield height)
+     so they scale with the 4:3 game area, not the browser window — vmin
+     made FIRE a third of the playfield when the window was taller than it
+     (portrait phones, tablets, touch laptops). */
+  container-type: size;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.touch-stick-zone {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 55%;
+}
+
+/* Floating base, centred on the thumb's touch point (left / top set in
+   JS). Diameter 24% of the playfield height = 2x the JS stick radius. */
+.touch-stick-base {
+  position: absolute;
+  height: 24%;
+  min-height: 64px;
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  border: 2px solid rgba(0, 240, 255, 0.55);
+  background: radial-gradient(circle, rgba(0, 240, 255, 0.12) 0%, rgba(0, 240, 255, 0.04) 70%);
+  box-shadow: 0 0 14px rgba(0, 240, 255, 0.35);
+  pointer-events: none;
+}
+
+.touch-stick-knob {
+  position: absolute;
+  width: 44%;
+  height: 44%;
+  left: 28%;
+  top: 28%;
+  border-radius: 50%;
+  background: rgba(0, 240, 255, 0.45);
+  border: 2px solid #00f0ff;
+  box-shadow: 0 0 12px #00f0ff;
+}
+
+.touch-buttons {
+  position: absolute;
+  right: 3%;
+  bottom: 13%;                 /* clear the HUD's bottom strip */
+  display: flex;
+  align-items: flex-end;
+  gap: 3%;
+}
+
+.touch-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1;
+  height: 14cqh;
+  max-height: 110px;
+  min-height: 48px;
+  border-radius: 50%;
+  border: 2px solid var(--btn-color, #ff00aa);
+  color: var(--btn-color, #ff00aa);
+  background: rgba(4, 2, 10, 0.45);
+  box-shadow: 0 0 12px var(--btn-color, #ff00aa);
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 700;
+  font-size: clamp(0.65rem, 2.6cqh, 1rem);
+  letter-spacing: 0.08em;
+  opacity: 0.75;
+}
+
+.touch-fire {
+  --btn-color: #ff00aa;
+  height: 20cqh;
+  max-height: 150px;
+  min-height: 64px;
+}
+
+.touch-emp { --btn-color: #00f0ff; }
+.touch-bt  { --btn-color: #39ff14; font-size: clamp(0.9rem, 3.5cqh, 1.4rem); }
+
+.touch-btn.active {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.12);
+  transform: scale(0.94);
+}
+
+.touch-emp.cooldown {
+  opacity: 0.3;
+}
+
+/* Menu buttons: no double-tap-zoom delay or grey tap flash on mobile. */
+button {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ----------------------------------------------------
+   PORTRAIT TOUCH LAYOUT (html.touch-portrait, set by touch.js)
+   ----------------------------------------------------
+   Touch device held upright. Instead of a small 4:3 box floating in the
+   middle of the screen:
+     - the game container fills the screen,
+     - the 4:3 play view (canvas + HUD) sits at the top,
+     - the touch controls take the free space below it, so thumbs never
+       cover the playfield,
+     - menus / hangar / game over overlay the full height instead of
+       being squeezed into the 4:3 box.
+   Landscape and desktop are untouched. dvh tracks the visible height on
+   mobile browsers (100vh includes the collapsing URL bar). */
+html.touch-portrait {
+  --hud-strip: 58px;                 /* score bar above the play view */
+  --shield-strip: 46px;              /* shield / EMP bars below it */
+  --play-top: var(--hud-strip);
+  --play-h: calc(100vw * 3 / 4);
+  --controls-top: calc(var(--play-top) + var(--play-h) + var(--shield-strip));
+}
+
+html.touch-portrait .crt-screen {
+  height: 100vh;
+  height: 100dvh;
+}
+
+html.touch-portrait .game-container {
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  aspect-ratio: auto;
+  border: none !important;          /* CRT bezel would frame the whole phone */
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+html.touch-portrait #gameCanvas {
+  top: var(--play-top);
+  height: var(--play-h);
+}
+
+/* The HUD moves off the playfield: in a 330px-tall play view it covered
+   half the screen. Its top bar sits in the strip above the canvas and its
+   bottom bar (shield / EMP) in the strip below, via the overlay's existing
+   space-between column. */
+html.touch-portrait .hud-overlay {
+  top: 0;
+  height: var(--controls-top);
+  padding: 6px 8px;
+}
+
+html.touch-portrait .hud-top {
+  gap: 4px;
+  align-items: stretch;
+}
+
+html.touch-portrait .hud-score-panel,
+html.touch-portrait .hud-wave-panel,
+html.touch-portrait .hud-high-panel,
+html.touch-portrait .hud-scrap-panel,
+html.touch-portrait .hud-pause-btn-panel {
+  padding: 4px 6px;
+  min-width: 0;
+}
+
+html.touch-portrait .hud-label {
+  font-size: 0.5rem;
+  letter-spacing: 0.08em;
+  margin-bottom: 2px;
+  white-space: nowrap;
+}
+
+html.touch-portrait .hud-value {
+  font-size: 0.95rem;
+  white-space: nowrap;
+}
+
+html.touch-portrait .hud-health-container {
+  width: 58%;
+  padding: 4px 8px;
+}
+
+html.touch-portrait .hud-emp-container {
+  width: 36%;
+  padding: 4px 8px;
+  margin-left: auto;
+}
+
+/* Combo chip floats just inside the top of the play view instead of
+   squeezing a sixth panel into the score bar. */
+html.touch-portrait .hud-combo-chip {
+  position: absolute;
+  top: calc(var(--play-top) + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+}
+
+html.touch-portrait .touch-controls {
+  top: var(--controls-top);
+  border-top: 1px solid rgba(0, 240, 255, 0.18);
+}
+
+/* The control area is its own region now, so the buttons no longer need
+   to clear the HUD's bottom strip. */
+html.touch-portrait .touch-buttons {
+  bottom: 8%;
+  right: 5%;
+}
+
+html.touch-portrait .touch-stick-zone {
+  width: 58%;
+}
+
+/* Base-hit glow belongs on the play view's bottom edge, not the bottom of
+   the screen (where the controls are now). */
+html.touch-portrait .game-container.base-hit-flash,
+html.reduce-motion.touch-portrait .game-container.base-hit-flash {
+  animation: none !important;
+}
+html.touch-portrait .game-container.base-hit-flash .hud-overlay {
+  animation: base-hit-pulse 0.38s ease-out !important;
+}
+
+/* Hangar: keep LAUNCH FIGHTER on screen while the upgrade list scrolls
+   (the list is ~2 screens tall on a portrait phone). */
+html.touch-portrait #shop-menu > div:last-child {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  margin-top: 1rem !important;
+  padding: 0.75rem 0 1rem;
+  background: linear-gradient(to bottom, rgba(5, 3, 15, 0), rgba(5, 3, 15, 0.95) 35%);
+}
+
+/* Keyboard-only hints mean nothing on a phone. */
+html.touch-device .how-to-play,
+html.touch-device .pause-hint-toast {
+  display: none !important;
+}
+
+/* "Rotate for a bigger view" banner (touch.js) — portrait phones only. */
+.rotate-hint {
+  display: none;
+}
+html.touch-portrait .rotate-hint {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: calc(100% - 2rem);
+  max-width: 420px;
+  margin: 0 auto 0.75rem;
+  padding: 0.5rem 0.5rem 0.5rem 0.9rem;
+  border: 1px solid var(--neon-cyan, #00f0ff);
+  border-radius: 6px;
+  background: rgba(0, 240, 255, 0.08);
+  color: #b8f6ff;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.85rem;
+}
+.rotate-hint-close {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 4px;
+  background: transparent;
+  color: #fff;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
