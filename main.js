@@ -9,8 +9,21 @@
    SPAWNING ENEMY WAVES & LEVELS SYSTEM
    ---------------------------------------------------- */
 function handleWaveSpawning(dt) {
-  // Level cleared checks
-  if (enemies.length === 0 && asteroids.length === 0 && scrapItems.length === 0) {
+  // Wave cleared but more to come: short breather, then the next formation.
+  // The level itself only clears after its final wave.
+  if (enemies.length === 0 && waveIndex < waveCount - 1) {
+    if (nextWaveTimer === 0) {
+      nextWaveTimer = WAVE_BREAK_MS;
+      announceWave(waveIndex + 2, waveCount);
+    }
+    nextWaveTimer -= dt;
+    if (nextWaveTimer <= 0) {
+      nextWaveTimer = 0;
+      waveIndex++;
+      spawnCampaignForces(activeLevelData, waveIndex);
+    }
+  } else if (enemies.length === 0 && asteroids.length === 0 && scrapItems.length === 0) {
+    // Level cleared checks
     if (!inShop && !inIntro) {
       triggerLevelClear();
     }
@@ -184,6 +197,7 @@ function loadAndStartLevel() {
   // PERFECT SECTOR tracker for the new level.
   activeLevelData = lvlData || {};
   levelDamageTaken = false;
+  resetWaves(activeLevelData);
 
   // Reset player position
   if (player) {
@@ -371,7 +385,40 @@ const BOSS_ENEMY_TYPES = {
   unicron: 'unicron'
 };
 
-function spawnCampaignForces(lvlData) {
+// Waves for a level. Regular (formation) levels used to be a single
+// formation: ~10-15 s of play, the whole 20-level campaign ~6-7 minutes of
+// combat. A level can list its own `waves` (array of enemyGrid objects);
+// otherwise it gets 3: its formation, then one more row, then one more row
+// and column — each wave bigger than the last. Boss levels stay one wave.
+const WAVE_BREAK_MS = 1500;
+
+function levelWaveGrids(lvlData) {
+  if (!lvlData || lvlData.bossType || !lvlData.enemyGrid) return null;
+  if (Array.isArray(lvlData.waves) && lvlData.waves.length) return lvlData.waves;
+  const g = lvlData.enemyGrid;
+  return [
+    g,
+    { ...g, rows: Math.min(5, g.rows + 1) },
+    { ...g, rows: Math.min(5, g.rows + 1), cols: Math.min(7, g.cols + 1) }
+  ];
+}
+
+function resetWaves(lvlData) {
+  const grids = levelWaveGrids(lvlData);
+  waveIndex = 0;
+  waveCount = grids ? grids.length : 1;
+  nextWaveTimer = 0;
+}
+
+function announceWave(number, total) {
+  const txt = new FloatingText(CONFIG.width / 2, CONFIG.height * 0.42, `WAVE ${number}/${total}`, '#00f0ff');
+  txt.fontSize = 26;
+  txt.vy = -0.5;
+  txt.decay = 0.012;
+  floatingTexts.push(txt);
+}
+
+function spawnCampaignForces(lvlData, wave = 0) {
   if (lvlData.bossType) {
     // Spawn designated sector boss Cruiser
     const boss = new Enemy(0, -120, BOSS_ENEMY_TYPES[lvlData.bossType] || 'boss');
@@ -379,7 +426,8 @@ function spawnCampaignForces(lvlData) {
     enemies.push(boss);
   } 
   else if (lvlData.enemyGrid) {
-    const grid = lvlData.enemyGrid;
+    const grids = levelWaveGrids(lvlData);
+    const grid = grids[Math.min(wave, grids.length - 1)];
     const spacingX = 75;
     const spacingY = 55;
     const startX = CONFIG.width / 2 - ((grid.cols - 1) * spacingX) / 2;
@@ -417,8 +465,8 @@ function spawnCampaignForces(lvlData) {
     }
   }
 
-  // Pre-spawn asteroid grids in high blitz levels
-  if (currentLevel === 8) {
+  // Pre-spawn asteroid grids in high blitz levels (opening wave only)
+  if (currentLevel === 8 && wave === 0) {
     asteroids.push(new Asteroid(150, -60, 'large'));
     asteroids.push(new Asteroid(450, -180, 'medium'));
     asteroids.push(new Asteroid(650, -100, 'large'));

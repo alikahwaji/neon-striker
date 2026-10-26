@@ -34,6 +34,7 @@ for (const [i, name] of names.entries()) {
         T.startGame();
         T.setLevel(levelNum);
         T.setActiveLevel(lvl);
+        T.resetWaves(lvl);
         T.enemies = [];
         T.spawnCampaignForces(lvl);
         T.setGameActive(true);

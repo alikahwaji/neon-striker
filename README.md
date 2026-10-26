@@ -7,7 +7,7 @@
 
 **Neon Striker** is a premium, zero-dependency, serverless retro-synthwave space shooter arcade game built from the ground up utilizing pure HTML5 Canvas vector mathematics and the procedural Web Audio API synthesis engine. 
 
-Pilot your high-performance cybernetic starfighter through **20 handcrafted cinematic, movie-themed sectors**, gather glowing nanotech scrap drops, purchase drone wingmen or active EMP shockwaves in the **Hangar Paint Shop**, and compete for the crown of the **Global Serverless Leaderboard**!
+Pilot your high-performance cybernetic starfighter through **20 handcrafted cinematic, movie-themed sectors** (regular sectors send **3 escalating waves**; boss sectors are a single showdown), gather glowing nanotech scrap drops, purchase drone wingmen or active EMP shockwaves in the **Hangar Paint Shop**, and compete for the crown of the **Global Serverless Leaderboard**!
 
 > 🕹️ **Play Live Immediately**: [https://alikahwaji.github.io/neon-striker/](https://alikahwaji.github.io/neon-striker/)
 

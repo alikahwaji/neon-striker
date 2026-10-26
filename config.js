@@ -52,6 +52,12 @@ let activeLevelData = {};
 // clear to award the PERFECT SECTOR bonus.
 let levelDamageTaken = false;
 
+// Wave progress within the current level (see levelWaveGrids in main.js).
+// Regular levels play several formations back to back; bosses are one wave.
+let waveIndex = 0;      // 0-based wave currently on screen
+let waveCount = 1;      // total waves this level
+let nextWaveTimer = 0;  // ms left in the breather before the next wave
+
 // All-Ages Expansion globals
 let selectedDifficulty = 'hero'; // 'cadet', 'hero', 'elite'
 
