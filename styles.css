@@ -1983,7 +1983,11 @@ button {
    Touch device held upright. Instead of a small 4:3 box floating in the
    middle of the screen:
      - the game container fills the screen,
-     - the 4:3 play view (canvas + HUD) sits at the top,
+     - the play view sits at the top. touch.js (portraitPlayView) picks
+       its world and size: 600x800 (3:4) when the screen is tall enough
+       for that to draw ships bigger than the 800x600 strip, else the
+       4:3 strip across the full width. Either way at least
+       --controls-min is left below for the thumbs,
      - the touch controls take the free space below it, so thumbs never
        cover the playfield,
      - menus / hangar / game over overlay the full height instead of
@@ -1993,7 +1997,11 @@ button {
 html.touch-portrait {
   --hud-strip: 58px;                 /* score bar above the play view */
   --shield-strip: 46px;              /* shield / EMP bars below it */
+  --controls-min: 170px;             /* stick + FIRE area below it */
   --play-top: var(--hud-strip);
+  /* --play-w / --play-h are set inline on <html> by touch.js; these are
+     the 4:3-strip fallbacks. */
+  --play-w: 100vw;
   --play-h: calc(100vw * 3 / 4);
   --controls-top: calc(var(--play-top) + var(--play-h) + var(--shield-strip));
 }
@@ -2015,6 +2023,8 @@ html.touch-portrait .game-container {
 
 html.touch-portrait #gameCanvas {
   top: var(--play-top);
+  left: calc((100% - var(--play-w)) / 2);
+  width: var(--play-w);
   height: var(--play-h);
 }
 
@@ -2116,38 +2126,6 @@ html.touch-portrait #shop-menu > div:last-child {
 html.touch-device .how-to-play,
 html.touch-device .pause-hint-toast {
   display: none !important;
-}
-
-/* "Rotate for a bigger view" banner (touch.js) — portrait phones only. */
-.rotate-hint {
-  display: none;
-}
-html.touch-portrait .rotate-hint {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  width: calc(100% - 2rem);
-  max-width: 420px;
-  margin: 0 auto 0.75rem;
-  padding: 0.5rem 0.5rem 0.5rem 0.9rem;
-  border: 1px solid var(--neon-cyan, #00f0ff);
-  border-radius: 6px;
-  background: rgba(0, 240, 255, 0.08);
-  color: #b8f6ff;
-  font-family: 'Share Tech Mono', monospace;
-  font-size: 0.85rem;
-}
-.rotate-hint-close {
-  flex: none;
-  width: 32px;
-  height: 32px;
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  border-radius: 4px;
-  background: transparent;
-  color: #fff;
-  font-size: 0.9rem;
-  cursor: pointer;
 }
 
 /* Input-specific wording (e.g. the pause screen). Controller wins when one

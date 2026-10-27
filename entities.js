@@ -85,9 +85,9 @@ class PlayerShip {
     
     const lvlData = activeLevelData || {};
     if (lvlData.trenchWalls) {
-      // Trench Run constrains player to middle corridor (200px to 600px)
-      minX = 210;
-      maxX = 590 - this.width;
+      // Trench Run constrains player to the middle corridor (trench walls)
+      minX = trenchLeft() + 10;
+      maxX = trenchRight() - 10 - this.width;
     }
 
     // Boundary check clamping
@@ -108,13 +108,13 @@ class PlayerShip {
       this.vy = 0;
     }
 
-    // Interstellar Black Hole gravity pull towards center (400px X coordinate)
+    // Interstellar Black Hole gravity pull towards the centre of the field
     if (lvlData.blackHole) {
       let pullForce = 0.16;
       if (selectedDifficulty === 'cadet') pullForce = 0.08;
       else if (selectedDifficulty === 'elite') pullForce = 0.22;
       
-      const pullDir = player.x + player.width / 2 < 400 ? 1 : -1;
+      const pullDir = player.x + player.width / 2 < CONFIG.width / 2 ? 1 : -1;
       this.vx += pullDir * pullForce * m;
     }
 
@@ -984,7 +984,7 @@ class Enemy {
         if (dist > 20) {
           const pullStrength = 0.08 * mult * m;
           player.vx += (dx / dist) * pullStrength;
-          if (player.y > 220) {
+          if (player.y > playfieldHorizonY()) {
             player.y += (dy / dist) * pullStrength * 1.5;
           }
         }

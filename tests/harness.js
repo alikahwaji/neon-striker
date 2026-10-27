@@ -28,7 +28,7 @@ function stub(name = 'stub') {
       if (k === 'then') return undefined;
       if (k in t) return t[k];
       if (k === 'classList') return { add() {}, remove() {}, toggle() {}, contains() { return false; } };
-      if (k === 'style') return {};
+      if (k === 'style') return { setProperty() {}, removeProperty() {} };
       if (k === 'firstChild' || k === 'lastChild' || k === 'parentNode') return null;
       if (k === 'value' || k === 'innerText' || k === 'textContent' || k === 'innerHTML') return '';
       t[k] = stub(name + '.' + String(k));
@@ -91,7 +91,7 @@ const HOOK = `
   setHealth(v) { health = v; },
   startGame, startBossRushRun, startDailyRun, frameMult, frameChance, updateGame, drawGame,
   triggerScreenShake, autoPauseIfPlaying, resizeCanvasToDisplay,
-  pollGamepad, padRumble,
+  pollGamepad, padRumble, portraitPlayView,
   get padMoveX() { return padMoveX; }, get padMoveY() { return padMoveY; },
   get keys() { return keys; }, get keysPressed() { return keysPressed; },
   clearKeysPressed() { keysPressed = {}; },
@@ -143,6 +143,7 @@ function loadGame(opts = {}) {
     navigator: {},
     performance: { now: () => Date.now() },
     devicePixelRatio: 1,
+    getComputedStyle: () => ({ getPropertyValue: () => '' }),
     addEventListener(ev, fn) { (listeners[ev] = listeners[ev] || []).push(fn); },
     AudioContext: undefined
   };
