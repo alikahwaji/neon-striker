@@ -1,0 +1,31 @@
+name: Firebase preview
+
+# Deploys every PR to a temporary Firebase Hosting preview channel and
+# comments the URL on the PR (expires after 7 days), so changes can be
+# checked in a real browser before merging. Skipped for PRs from forks,
+# which can't read the deploy secret.
+
+on: pull_request
+
+permissions:
+  checks: write
+  contents: read
+  pull-requests: write
+
+jobs:
+  preview:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+      - name: Verify game.bundle.js is up to date
+        run: node build.js --check
+      - uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_NEON_STRIKER_70D7C }}
+          projectId: neon-striker-70d7c
+          expires: 7d

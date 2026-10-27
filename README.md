@@ -175,5 +175,24 @@ Zero-dependency tests on Node's built-in runner (`tests/`). [`tests/harness.js`]
 
 ---
 
+## 🔥 Hosting (Firebase)
+
+The game is deployed to **Firebase Hosting** at **https://neon-striker-70d7c.web.app** (GitHub Pages stays up in parallel during the move).
+
+* **Every PR** gets a temporary preview URL (expires after 7 days), commented on the PR by `.github/workflows/firebase-hosting-pull-request.yml`.
+* **Every merge to `main`** deploys the live site via `.github/workflows/firebase-hosting-merge.yml` (bundle check + tests first).
+* [`firebase.json`](firebase.json) publishes only what the page needs (`index.html`, `styles.css`, `game.bundle.js`, `database.js`), sets `no-cache` on the page and scripts so updates reach players immediately, and adds basic security headers.
+* Firestore rules and indexes are also in `firebase.json`; deploy them with `firebase deploy --only firestore` (CI does not deploy them yet).
+
+**One-time CI setup** (creates a deploy-only service account and stores its key as the `FIREBASE_SERVICE_ACCOUNT_NEON_STRIKER_70D7C` repo secret):
+
+```bash
+firebase init hosting:github   # repo: alikahwaji/neon-striker; answer "No" to overwriting the existing workflow files
+```
+
+Manual deploys: `firebase deploy --only hosting` (live) or `firebase hosting:channel:deploy <name> --expires 7d` (preview).
+
+---
+
 ## 📜 MIT License
 Distributed under the MIT License. See [LICENSE](LICENSE) for more information.
