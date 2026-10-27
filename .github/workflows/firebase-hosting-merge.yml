@@ -1,0 +1,34 @@
+name: Firebase deploy (live)
+
+# Deploys main to the live Firebase Hosting site
+# (https://neon-striker-70d7c.web.app) on every push / merge.
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: firebase-live
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+      - name: Verify game.bundle.js is up to date
+        run: node build.js --check
+      - name: Gameplay tests
+        run: npm test
+      - uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_NEON_STRIKER_70D7C }}
+          projectId: neon-striker-70d7c
+          channelId: live
