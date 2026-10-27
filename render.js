@@ -485,8 +485,57 @@ function drawGame() {
 
   ctx.restore();
 
+  if (CONFIG.bloom) applyBloom();
+
   // Overlays drawn outside the camera-shake transform so they stay steady.
   if (bossIntroTimer > 0) drawBossIntro();
+}
+
+/* ----------------------------------------------------
+   BLOOM
+   ----------------------------------------------------
+   The finished frame is copied into a small buffer (1/4 of the logical
+   800x600) through a contrast + blur filter, which keeps only the bright
+   neon strokes and spreads them out, then added back over the frame with
+   'lighter'. One downscale + one upscale per frame, so the cost doesn't grow
+   with the number of sprites, unlike shadowBlur. The buffer stays above
+   Chrome's GPU-acceleration size floor so the copy doesn't read the frame
+   back to the CPU. Browsers without ctx.filter (older Safari) skip the
+   bright-pass; the bilinear upscale alone still gives a soft glow. */
+const BLOOM_DOWNSCALE = 4;
+const BLOOM_STRENGTH = 0.5;
+const BLOOM_FILTER = 'contrast(1.9) brightness(1.15) blur(3px)';
+let bloomCanvas = null;
+let bloomCtx = null;
+let bloomFilterOk = false;
+
+function initBloom() {
+  bloomCanvas = document.createElement('canvas');
+  bloomCanvas.width = CONFIG.width / BLOOM_DOWNSCALE;
+  bloomCanvas.height = CONFIG.height / BLOOM_DOWNSCALE;
+  bloomCtx = bloomCanvas.getContext('2d');
+  if (!bloomCtx) {
+    bloomCanvas = null;
+    return false;
+  }
+  bloomFilterOk = typeof bloomCtx.filter === 'string';
+  return true;
+}
+
+function applyBloom() {
+  if (!canvas || (!bloomCtx && !initBloom())) return;
+  const bw = bloomCanvas.width, bh = bloomCanvas.height;
+  bloomCtx.clearRect(0, 0, bw, bh);
+  if (bloomFilterOk) bloomCtx.filter = BLOOM_FILTER;
+  bloomCtx.drawImage(canvas, 0, 0, canvas.width, canvas.height, 0, 0, bw, bh);
+  if (bloomFilterOk) bloomCtx.filter = 'none';
+
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.globalAlpha = BLOOM_STRENGTH;
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(bloomCanvas, 0, 0, CONFIG.width, CONFIG.height);
+  ctx.restore();
 }
 
 // "WARNING" banner + boss name + red edge glow while a boss arrives.
