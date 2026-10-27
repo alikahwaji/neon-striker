@@ -63,7 +63,7 @@ Built on top of the modular **Firebase Web SDK v12.13.0** loaded directly from C
 | **`W` / `A` / `S` / `D`** or **`↑` / `←` / `↓` / `→`** | Flight Movement (2D Thrusters) |
 | **`SPACEBAR`** (Hold or Tap) | Discharge Primary Laser Cannons |
 | **`E`** or **`SHIFT`** | Trigger Tactical EMP Shockwave *(Requires Hangar Unlock)* |
-| **`P`** | Pause / Resume Arcade Simulation |
+| **`P`** / **`Esc`** | Pause / Resume Arcade Simulation |
 
 ### 🎮 Gamepad
 

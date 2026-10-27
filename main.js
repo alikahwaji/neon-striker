@@ -372,7 +372,7 @@ function maybeShowPauseHint() {
     try { localStorage.setItem('neon_striker_pause_hint_seen_v1', '1'); } catch (e) {}
     window.removeEventListener('keydown', dismissOnPause);
   };
-  const dismissOnPause = (e) => { if (e.code === 'KeyP') markSeen(); };
+  const dismissOnPause = (e) => { if (e.code === 'KeyP' || e.code === 'Escape') markSeen(); };
   window.addEventListener('keydown', dismissOnPause);
   setTimeout(markSeen, 4000);
 }
@@ -976,7 +976,7 @@ function continueGame() {
 }
 
 // Pause when the player tabs away or the window loses focus mid-fight, so
-// they don't come back to a dead ship. Never auto-resumes: P / RESUME is
+// they don't come back to a dead ship. Never auto-resumes: P / Esc / RESUME is
 // an explicit choice, so the game can't restart behind the player's back.
 function autoPauseIfPlaying() {
   if (gameActive && !gamePaused && !inShop && !inIntro) togglePause();
