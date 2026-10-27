@@ -182,6 +182,8 @@ function loadAndStartLevel() {
   wingmanDrones = [];
   empShockwaves = [];
   debrisList = [];
+  impactRings = [];
+  bossIntroTimer = 0;
   matrixStreams = [];
   // Clear any active power-ups so they don't carry across levels/runs. Keys
   // were already deleted on expiry (never a leak), but a still-running timer
@@ -391,6 +393,7 @@ const BOSS_ENEMY_TYPES = {
 // otherwise it gets 3: its formation, then one more row, then one more row
 // and column — each wave bigger than the last. Boss levels stay one wave.
 const WAVE_BREAK_MS = 1500;
+const BOSS_INTRO_MS = 2600;
 
 function levelWaveGrids(lvlData) {
   if (!lvlData || lvlData.bossType || !lvlData.enemyGrid) return null;
@@ -424,6 +427,9 @@ function spawnCampaignForces(lvlData, wave = 0) {
     const boss = new Enemy(0, -120, BOSS_ENEMY_TYPES[lvlData.bossType] || 'boss');
     boss.x = CONFIG.width / 2 - boss.width / 2;
     enemies.push(boss);
+    // Warning banner as it arrives (drawBossIntro in render.js).
+    bossIntroTimer = BOSS_INTRO_MS;
+    bossIntroName = (lvlData.subtitle || 'UNKNOWN HOSTILE').toUpperCase();
   } 
   else if (lvlData.enemyGrid) {
     const grids = levelWaveGrids(lvlData);
@@ -636,6 +642,15 @@ function updateGame(dt) {
     if (emp.radius >= emp.maxRadius) {
       empShockwaves.splice(i, 1);
     }
+  }
+
+  // Boss intro banner countdown (frozen while paused, like everything here)
+  if (bossIntroTimer > 0) bossIntroTimer = Math.max(0, bossIntroTimer - dt);
+
+  // Update explosion shockwave rings
+  for (let i = impactRings.length - 1; i >= 0; i--) {
+    impactRings[i].update(dt);
+    if (impactRings[i].done) impactRings.splice(i, 1);
   }
 
   // Update Vector Debris
@@ -859,7 +874,10 @@ function gameTick(timestamp) {
   pollGamepad();
   updateTouchControls();
 
-  if (gameActive && !gamePaused) {
+  if (gameActive && !gamePaused && hitStopTimer > 0) {
+    // Hit-stop: hold the world still for a beat, keep drawing.
+    hitStopTimer -= rawDt;
+  } else if (gameActive && !gamePaused) {
     updateGame(dt);
     // Stats playtime ticks only during active gameplay, so menu / intro /
     // pause time doesn't inflate the totalPlaytime counter.
@@ -1038,6 +1056,7 @@ let hudRefs = null;
 const hudLast = {
   score: -1, level: -1, scrap: -1, high: -1,
   healthPct: -1, healthCls: '',
+  shownScore: NaN, trailPct: 100, trailHold: 0, trailShown: -1,
   empVisible: null, empFillPct: -1, empReady: null,
   powerupsSig: '',
   comboMult: 1
@@ -1051,6 +1070,7 @@ function getHudRefs() {
     scrap: document.getElementById('hud-scrap'),
     high: document.getElementById('hud-high-score'),
     healthFill: document.getElementById('hud-health-fill'),
+    healthTrail: document.getElementById('hud-health-trail'),
     empContainer: document.getElementById('hud-emp-container'),
     empFill: document.getElementById('hud-emp-fill'),
     powerups: document.getElementById('hud-powerups'),
@@ -1062,13 +1082,24 @@ function getHudRefs() {
   return hudRefs;
 }
 
+const HEALTH_TRAIL_HOLD_MS = 350;
+
 function updateHud(dt) {
   const r = getHudRefs();
 
-  // Counter values — write only when changed.
-  if (score !== hudLast.score) {
-    r.score.innerText = formatScore(score);
-    hudLast.score = score;
+  // Counter values — write only when changed. The score counts up to its
+  // new value over ~a quarter second instead of jumping (snaps on resets).
+  if (score < hudLast.shownScore || !Number.isFinite(hudLast.shownScore)) {
+    hudLast.shownScore = score;
+  } else if (hudLast.shownScore < score) {
+    const k = Math.min(1, (dt || 16.667) / 80);
+    hudLast.shownScore += Math.max(1, (score - hudLast.shownScore) * k);
+    if (hudLast.shownScore > score) hudLast.shownScore = score;
+  }
+  const shown = Math.floor(hudLast.shownScore);
+  if (shown !== hudLast.score) {
+    r.score.innerText = formatScore(shown);
+    hudLast.score = shown;
   }
   if (currentLevel !== hudLast.level) {
     r.wave.innerText = currentLevel;
@@ -1112,6 +1143,22 @@ function updateHud(dt) {
   if (healthPercent !== hudLast.healthPct) {
     r.healthFill.style.width = `${healthPercent}%`;
     hudLast.healthPct = healthPercent;
+  }
+  // Damage trail: hold at the pre-hit level briefly, then drain down;
+  // healing (or a new run) moves it up immediately.
+  if (healthPercent >= hudLast.trailPct) {
+    hudLast.trailPct = healthPercent;
+    hudLast.trailHold = 0;
+  } else if (hudLast.trailHold < HEALTH_TRAIL_HOLD_MS) {
+    hudLast.trailHold += dt || 16.667;
+  } else {
+    const k = Math.min(1, (dt || 16.667) / 140);
+    hudLast.trailPct = Math.max(healthPercent, hudLast.trailPct - Math.max(0.4, (hudLast.trailPct - healthPercent) * k));
+  }
+  const trailShown = Math.round(hudLast.trailPct * 10) / 10;
+  if (r.healthTrail && trailShown !== hudLast.trailShown) {
+    r.healthTrail.style.width = `${trailShown}%`;
+    hudLast.trailShown = trailShown;
   }
   const healthCls = healthPercent > 50
     ? 'hud-health-fill shield-active'

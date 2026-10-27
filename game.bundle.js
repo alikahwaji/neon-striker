@@ -896,6 +896,14 @@ let criticalHeartbeatTimer = 0;
 // so cross-effect animations stay phase-locked. */
 let frameNow = 0;
 
+// Hit-stop: brief freeze of the simulation (rendering continues) to give
+// big impacts weight. Set via hitStop(ms) in collisions.js.
+let hitStopTimer = 0;
+
+// Boss intro banner (render.js drawBossIntro): ms remaining + title.
+let bossIntroTimer = 0;
+let bossIntroName = '';
+
 // Monotonic ID counter for entities that need cheap O(1) dedup keys.
 // Used by piercing-laser collision tracking: instead of allocating a
 // new Set() per pierce-laser to remember "did I hit this enemy already?",
@@ -955,6 +963,7 @@ let wallTurrets = [];
 let wingmanDrones = [];
 let empShockwaves = [];
 let debrisList = [];
+let impactRings = [];   // expanding explosion shockwave rings (ImpactRing)
 let empCooldownTimer = 0;
 let bulletTimeActive = false;
 let matrixStreams = [];
@@ -1177,6 +1186,8 @@ function strokeWithHalo() {
 // screen) at SENTRY_ENTRY_SPEED px per 60 Hz frame, then hold and sweep.
 const SENTRY_MOUNT_Y = 60;
 const SENTRY_ENTRY_SPEED = 2.5;
+
+const ENEMY_HIT_FLASH_MS = 90;
 
 // Player Space Fighter Class
 class PlayerShip {
@@ -1986,6 +1997,7 @@ class Enemy {
   }
 
   update(dt) {
+    if (this.hitFlash > 0) this.hitFlash -= dt;
     if (this.stunTimer > 0) {
       this.stunTimer -= dt;
       return;
@@ -2262,6 +2274,11 @@ class Enemy {
   }
 
   draw() {
+    // Hit flash: draw the whole hull white for a moment after a non-lethal
+    // hit (takeDamage), so every hit reads even when the damage number is
+    // lost in a fight. Restored at the end of draw().
+    const baseColor = this.color;
+    if (this.hitFlash > 0) this.color = '#ffffff';
     ctx.save();
     ctx.globalAlpha = this.alpha;
     // Bosses (one at a time) keep the real blur; the rest of the grid uses
@@ -2583,6 +2600,7 @@ class Enemy {
     }
 
     ctx.restore();
+    this.color = baseColor;
   }
 
   takeDamage(amount) {
@@ -2599,8 +2617,41 @@ class Enemy {
     if (this.health <= 0) {
       return true;
     }
+    this.hitFlash = ENEMY_HIT_FLASH_MS; // drawn white briefly (Enemy.draw)
     GameAudio.playHitSound();
     return false;
+  }
+}
+
+// Expanding shockwave ring for explosions. Cheap: one halo-stroked arc per
+// ring (no shadowBlur), short-lived, and capped (MAX_IMPACT_RINGS).
+class ImpactRing {
+  constructor(x, y, color, maxRadius) {
+    this.x = x;
+    this.y = y;
+    this.color = color;
+    this.maxRadius = maxRadius;
+    this.age = 0;
+    this.life = 380; // ms
+  }
+
+  update(dt) {
+    this.age += dt || 16.667;
+  }
+
+  get done() { return this.age >= this.life; }
+
+  draw() {
+    const t = Math.min(1, this.age / this.life);
+    const eased = 1 - (1 - t) * (1 - t); // fast out, slow settle
+    ctx.save();
+    ctx.globalAlpha = (1 - t) * 0.9;
+    ctx.strokeStyle = this.color;
+    ctx.lineWidth = Math.max(0.5, 3.5 * (1 - t));
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, 6 + eased * this.maxRadius, 0, Math.PI * 2);
+    strokeWithHalo();
+    ctx.restore();
   }
 }
 
@@ -2932,6 +2983,7 @@ class Particle {
     this.alpha = 1.0;
     this.decay = Math.random() * 0.02 + 0.015;
     this.gravity = 0.06;
+    this.streak = false; // spark streak: drawn as a short line along its velocity
   }
 
   update(dt) {
@@ -2946,6 +2998,23 @@ class Particle {
   }
 
   draw() {
+    if (this.streak) {
+      // Spark streak: a short line trailing behind the particle's motion,
+      // halo + core like the dots (no shadowBlur).
+      ctx.strokeStyle = this.color;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(this.x, this.y);
+      ctx.lineTo(this.x - this.vx * 2.6, this.y - this.vy * 2.6);
+      ctx.globalAlpha = this.alpha * 0.3;
+      ctx.lineWidth = this.radius * 3;
+      ctx.stroke();
+      ctx.globalAlpha = this.alpha;
+      ctx.lineWidth = this.radius;
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+      return;
+    }
     // Pseudo-glow without shadowBlur: a soft halo at lower alpha behind
     // a bright core. Visually similar to a shadowBlur=6 fill but ~10×
     // cheaper — shadowBlur forces an offscreen rasterise + Gaussian
@@ -3698,6 +3767,7 @@ function drawGame() {
 
   // Draw Vector Debris under ships/lasers for clean layering
   debrisList.forEach(debris => debris.draw());
+  impactRings.forEach(ring => ring.draw());
 
   // Draw EMP Shockwaves
   empShockwaves.forEach(emp => emp.draw());
@@ -3736,6 +3806,67 @@ function drawGame() {
   if (player && health > 0) {
     player.draw();
   }
+
+  ctx.restore();
+
+  // Overlays drawn outside the camera-shake transform so they stay steady.
+  if (bossIntroTimer > 0) drawBossIntro();
+}
+
+// "WARNING" banner + boss name + red edge glow while a boss arrives.
+// No shadowBlur: text glow is a faint wide stroke under the fill. With
+// Reduced Motion the edge glow holds steady instead of pulsing.
+function drawBossIntro() {
+  const total = BOSS_INTRO_MS;
+  const elapsed = total - bossIntroTimer;
+  const fadeIn = Math.min(1, elapsed / 250);
+  const fadeOut = Math.min(1, bossIntroTimer / 400);
+  const a = Math.min(fadeIn, fadeOut);
+  const W = CONFIG.width, H = CONFIG.height;
+
+  ctx.save();
+
+  // Red edge glow (two side gradients + top/bottom)
+  const pulse = CONFIG.reducedMotion ? 0.6 : 0.45 + 0.35 * Math.abs(Math.sin(elapsed / 180));
+  const edge = 70;
+  const sides = [
+    [0, 0, edge, 0, 0, 0, edge, H],
+    [W, 0, W - edge, 0, W - edge, 0, edge, H],
+    [0, 0, 0, edge, 0, 0, W, edge],
+    [0, H, 0, H - edge, 0, H - edge, W, edge]
+  ];
+  for (const [x0, y0, x1, y1, rx, ry, rw, rh] of sides) {
+    const g = ctx.createLinearGradient(x0, y0, x1, y1);
+    g.addColorStop(0, `rgba(255, 0, 60, ${0.55 * pulse * a})`);
+    g.addColorStop(1, 'rgba(255, 0, 60, 0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(rx, ry, rw, rh);
+  }
+
+  // Banner band
+  const bandY = H * 0.36, bandH = 92;
+  ctx.globalAlpha = a;
+  ctx.fillStyle = 'rgba(10, 0, 6, 0.72)';
+  ctx.fillRect(0, bandY, W, bandH);
+  ctx.fillStyle = '#ff003c';
+  ctx.fillRect(0, bandY, W, 2);
+  ctx.fillRect(0, bandY + bandH - 2, W, 2);
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const glowText = (text, y, font, color) => {
+    ctx.font = font;
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = color;
+    ctx.globalAlpha = a * 0.25;
+    ctx.lineWidth = 8;
+    ctx.strokeText(text, W / 2, y);
+    ctx.globalAlpha = a;
+    ctx.fillStyle = color;
+    ctx.fillText(text, W / 2, y);
+  };
+  glowText('\u26A0  WARNING  \u26A0', bandY + 32, '900 30px Orbitron, sans-serif', '#ff003c');
+  glowText(bossIntroName, bandY + 66, '700 16px Orbitron, sans-serif', '#ffffff');
 
   ctx.restore();
 }
@@ -3782,11 +3913,19 @@ function spawnDebris(x, y, color) {
   }
 }
 
+// Freeze the simulation for `ms` (the longest pending stop wins). Used
+// sparingly — boss kills, bombs, EMP, taking a hit — never for routine
+// kills, which happen constantly and would make the game stutter.
+function hitStop(ms) {
+  hitStopTimer = Math.max(hitStopTimer, ms);
+}
+
 function triggerPlayerEMP() {
   if (!player) return;
   empShockwaves.push(new EMPShockwave(player.x + player.width / 2, player.y + player.height / 2));
   empCooldownTimer = 8000; // 8 seconds cooldown
   padRumble(0.6, 0.9, 260);
+  hitStop(50);
 }
 
 // Average distance of an asteroid's drawn outline from its centre, as a
@@ -3821,6 +3960,7 @@ function laserHitsShip(laser, ship) {
 // escape check in main.js). Otherwise shooting a rock made things worse:
 // one large escaping costs 10, its seven fragments could cost 70.
 function splitAsteroid(ast) {
+  spawnImpactBurst(ast.x, ast.y, ast.color, ast.radius);
   let pieces = [];
   if (ast.size === 'large') {
     pieces = [new Asteroid(ast.x - 15, ast.y, 'medium', -1.2, ast.vy + 0.3),
@@ -3855,11 +3995,13 @@ function destroyEnemy(enemy, eIndex) {
   // Pre-computed isBoss flag (set once in Enemy ctor) replaces the
   // 4× repeated `startsWith('boss') || === 'unicron'` string scans below.
   const big = enemy.isBoss;
+  if (big) hitStop(140);
   GameAudio.playExplosionSound(big ? 2.2 : 0.85);
   triggerScreenShake(big ? 0.9 : 0.25);
 
   spawnExplosionParticles(enemy.x + enemy.width/2, enemy.y + enemy.height/2, enemy.color, big ? 60 : 15);
   spawnDebris(enemy.x + enemy.width/2, enemy.y + enemy.height/2, enemy.color);
+  spawnImpactBurst(enemy.x + enemy.width/2, enemy.y + enemy.height/2, enemy.color, big ? 120 : enemy.width);
 
   // Egg Hatch facehugger drones! (Level 12 Alien)
   if (enemy instanceof HatchingPod) {
@@ -4222,6 +4364,7 @@ function damagePlayer(amount) {
   health = Math.max(0, health - amount);
   triggerScreenShake(0.5);
   padRumble(0.8, 0.5, 180);
+  hitStop(60);
   GameAudio.playExplosionSound(0.8);
   spawnExplosionParticles(player.x + player.width / 2, player.y + player.height / 2, '#ff003c', 15);
   player.invulnFrames = 60;
@@ -4238,6 +4381,7 @@ function applyPowerUp(type) {
   if (type === 'BOMB') {
     triggerScreenShake(1.0);
     padRumble(1.0, 1.0, 400);
+    hitStop(80);
     GameAudio.playBombSound();
     
     for (let e = enemies.length - 1; e >= 0; e--) {
@@ -4275,6 +4419,30 @@ function spawnSparkParticles(x, y, color) {
   }
 }
 
+// Explosion accents: an expanding shockwave ring plus fast spark streaks.
+// size: radius-ish scale of the thing that blew up (enemy width, rock
+// radius, boss ~ 120). Rings are capped so a bomb clearing a full grid
+// doesn't stack dozens of them.
+const MAX_IMPACT_RINGS = 24;
+function spawnImpactBurst(x, y, color, size) {
+  if (impactRings.length < MAX_IMPACT_RINGS) {
+    impactRings.push(new ImpactRing(x, y, color, Math.min(160, size * 1.6)));
+  }
+  const streaks = size > 80 ? 14 : 6;
+  for (let i = 0; i < streaks; i++) {
+    const p = new Particle(x, y, i % 2 ? '#ffffff' : color);
+    const angle = Math.random() * Math.PI * 2;
+    const speed = Math.random() * 5 + 4;
+    p.vx = Math.cos(angle) * speed;
+    p.vy = Math.sin(angle) * speed;
+    p.gravity = 0.02;
+    p.decay = 0.045;
+    p.radius = 1.4;
+    p.streak = true;
+    particles.push(p);
+  }
+}
+
 function spawnExplosionParticles(x, y, color, count = 15) {
   for (let i = 0; i < count; i++) {
     particles.push(new Particle(x, y, color));
@@ -4287,6 +4455,7 @@ function triggerPlayerExplosion() {
   GameAudio.playBombSound();
   spawnExplosionParticles(player.x + player.width / 2, player.y + player.height / 2, '#00f0ff', 50);
   spawnExplosionParticles(player.x + player.width / 2, player.y + player.height / 2, '#ff00aa', 30);
+  spawnImpactBurst(player.x + player.width / 2, player.y + player.height / 2, '#00f0ff', 120);
   
   setTimeout(() => {
     showGameOverScreen();
@@ -5461,6 +5630,8 @@ function loadAndStartLevel() {
   wingmanDrones = [];
   empShockwaves = [];
   debrisList = [];
+  impactRings = [];
+  bossIntroTimer = 0;
   matrixStreams = [];
   // Clear any active power-ups so they don't carry across levels/runs. Keys
   // were already deleted on expiry (never a leak), but a still-running timer
@@ -5670,6 +5841,7 @@ const BOSS_ENEMY_TYPES = {
 // otherwise it gets 3: its formation, then one more row, then one more row
 // and column — each wave bigger than the last. Boss levels stay one wave.
 const WAVE_BREAK_MS = 1500;
+const BOSS_INTRO_MS = 2600;
 
 function levelWaveGrids(lvlData) {
   if (!lvlData || lvlData.bossType || !lvlData.enemyGrid) return null;
@@ -5703,6 +5875,9 @@ function spawnCampaignForces(lvlData, wave = 0) {
     const boss = new Enemy(0, -120, BOSS_ENEMY_TYPES[lvlData.bossType] || 'boss');
     boss.x = CONFIG.width / 2 - boss.width / 2;
     enemies.push(boss);
+    // Warning banner as it arrives (drawBossIntro in render.js).
+    bossIntroTimer = BOSS_INTRO_MS;
+    bossIntroName = (lvlData.subtitle || 'UNKNOWN HOSTILE').toUpperCase();
   } 
   else if (lvlData.enemyGrid) {
     const grids = levelWaveGrids(lvlData);
@@ -5915,6 +6090,15 @@ function updateGame(dt) {
     if (emp.radius >= emp.maxRadius) {
       empShockwaves.splice(i, 1);
     }
+  }
+
+  // Boss intro banner countdown (frozen while paused, like everything here)
+  if (bossIntroTimer > 0) bossIntroTimer = Math.max(0, bossIntroTimer - dt);
+
+  // Update explosion shockwave rings
+  for (let i = impactRings.length - 1; i >= 0; i--) {
+    impactRings[i].update(dt);
+    if (impactRings[i].done) impactRings.splice(i, 1);
   }
 
   // Update Vector Debris
@@ -6138,7 +6322,10 @@ function gameTick(timestamp) {
   pollGamepad();
   updateTouchControls();
 
-  if (gameActive && !gamePaused) {
+  if (gameActive && !gamePaused && hitStopTimer > 0) {
+    // Hit-stop: hold the world still for a beat, keep drawing.
+    hitStopTimer -= rawDt;
+  } else if (gameActive && !gamePaused) {
     updateGame(dt);
     // Stats playtime ticks only during active gameplay, so menu / intro /
     // pause time doesn't inflate the totalPlaytime counter.
@@ -6317,6 +6504,7 @@ let hudRefs = null;
 const hudLast = {
   score: -1, level: -1, scrap: -1, high: -1,
   healthPct: -1, healthCls: '',
+  shownScore: NaN, trailPct: 100, trailHold: 0, trailShown: -1,
   empVisible: null, empFillPct: -1, empReady: null,
   powerupsSig: '',
   comboMult: 1
@@ -6330,6 +6518,7 @@ function getHudRefs() {
     scrap: document.getElementById('hud-scrap'),
     high: document.getElementById('hud-high-score'),
     healthFill: document.getElementById('hud-health-fill'),
+    healthTrail: document.getElementById('hud-health-trail'),
     empContainer: document.getElementById('hud-emp-container'),
     empFill: document.getElementById('hud-emp-fill'),
     powerups: document.getElementById('hud-powerups'),
@@ -6341,13 +6530,24 @@ function getHudRefs() {
   return hudRefs;
 }
 
+const HEALTH_TRAIL_HOLD_MS = 350;
+
 function updateHud(dt) {
   const r = getHudRefs();
 
-  // Counter values — write only when changed.
-  if (score !== hudLast.score) {
-    r.score.innerText = formatScore(score);
-    hudLast.score = score;
+  // Counter values — write only when changed. The score counts up to its
+  // new value over ~a quarter second instead of jumping (snaps on resets).
+  if (score < hudLast.shownScore || !Number.isFinite(hudLast.shownScore)) {
+    hudLast.shownScore = score;
+  } else if (hudLast.shownScore < score) {
+    const k = Math.min(1, (dt || 16.667) / 80);
+    hudLast.shownScore += Math.max(1, (score - hudLast.shownScore) * k);
+    if (hudLast.shownScore > score) hudLast.shownScore = score;
+  }
+  const shown = Math.floor(hudLast.shownScore);
+  if (shown !== hudLast.score) {
+    r.score.innerText = formatScore(shown);
+    hudLast.score = shown;
   }
   if (currentLevel !== hudLast.level) {
     r.wave.innerText = currentLevel;
@@ -6391,6 +6591,22 @@ function updateHud(dt) {
   if (healthPercent !== hudLast.healthPct) {
     r.healthFill.style.width = `${healthPercent}%`;
     hudLast.healthPct = healthPercent;
+  }
+  // Damage trail: hold at the pre-hit level briefly, then drain down;
+  // healing (or a new run) moves it up immediately.
+  if (healthPercent >= hudLast.trailPct) {
+    hudLast.trailPct = healthPercent;
+    hudLast.trailHold = 0;
+  } else if (hudLast.trailHold < HEALTH_TRAIL_HOLD_MS) {
+    hudLast.trailHold += dt || 16.667;
+  } else {
+    const k = Math.min(1, (dt || 16.667) / 140);
+    hudLast.trailPct = Math.max(healthPercent, hudLast.trailPct - Math.max(0.4, (hudLast.trailPct - healthPercent) * k));
+  }
+  const trailShown = Math.round(hudLast.trailPct * 10) / 10;
+  if (r.healthTrail && trailShown !== hudLast.trailShown) {
+    r.healthTrail.style.width = `${trailShown}%`;
+    hudLast.trailShown = trailShown;
   }
   const healthCls = healthPercent > 50
     ? 'hud-health-fill shield-active'
