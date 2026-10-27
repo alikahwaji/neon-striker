@@ -1,0 +1,60 @@
+name: Firestore rules + indexes deploy
+
+# Deploys firestore.rules and firestore.indexes.json to the live project
+# when they change on main (or on demand from the Actions tab). PRs that
+# touch them get a --dry-run, which compiles the rules on Firebase's side
+# so a syntax error fails the PR instead of the deploy. Uses the
+# same service account as the Hosting deploy; it needs the
+# "Firebase Rules Admin" and "Cloud Datastore Index Admin" roles.
+#
+# Indexes that exist in the console but not in firestore.indexes.json are
+# left alone (no --force), so a missing entry can't drop a live index.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - firestore.rules
+      - firestore.indexes.json
+      - firebase.json
+      - .github/workflows/firestore-deploy.yml
+  pull_request:
+    paths:
+      - firestore.rules
+      - firestore.indexes.json
+      - firebase.json
+      - .github/workflows/firestore-deploy.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: firestore-${{ github.event_name == 'pull_request' && github.ref || 'live' }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # Fork PRs don't get the secret.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+      - name: Write service account key
+        env:
+          SA_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_NEON_STRIKER_70D7C }}
+        run: |
+          printf '%s' "$SA_KEY" > "$RUNNER_TEMP/sa.json"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/sa.json" >> "$GITHUB_ENV"
+      - name: Deploy rules + indexes (dry run on PRs)
+        run: >
+          npx --yes firebase-tools@14
+          deploy --only firestore:rules,firestore:indexes
+          --project neon-striker-70d7c --non-interactive
+          ${{ github.event_name == 'pull_request' && '--dry-run' || '' }}
+      - name: Remove service account key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/sa.json"
