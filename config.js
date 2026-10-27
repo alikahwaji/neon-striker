@@ -17,6 +17,7 @@ const CONFIG = {
   laserCooldown: 250, // ms
   shakeEnabled: true,
   reducedMotion: false, // Settings toggle; defaults to the OS preference (ui.js)
+  bloom: true,          // Settings toggle; defaults off on touch / coarse-pointer devices (ui.js)
   particleDensity: 25
 };
 

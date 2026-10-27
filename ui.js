@@ -370,6 +370,10 @@ window.addEventListener('load', () => {
   // still draws in CONFIG.width x CONFIG.height units (see render.js).
   initHiDpiCanvas();
 
+  // Bloom costs a full-screen composite per frame: on by default for
+  // desktops, off for phones/tablets (a saved choice overrides either way).
+  setBloomEnabled(!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches));
+
   // Restore prior session's settings before any listeners wire up so the
   // controls' visual state matches the values we just pushed into the game.
   applyPersistedSettings(loadPersistedSettings());
@@ -753,6 +757,14 @@ window.addEventListener('load', () => {
     } else {
       container.classList.remove('crt-bezel-active');
     }
+  }
+
+  const toggleBloom = document.getElementById('toggle-bloom');
+  if (toggleBloom) {
+    toggleBloom.addEventListener('change', e => {
+      setBloomEnabled(e.target.checked);
+      persistSettings();
+    });
   }
 
   const toggleMotion = document.getElementById('toggle-reduced-motion');
@@ -1232,6 +1244,12 @@ function applyReducedMotion(on) {
   if (cb) cb.checked = !!on;
 }
 
+function setBloomEnabled(on) {
+  CONFIG.bloom = !!on;
+  const cb = document.getElementById('toggle-bloom');
+  if (cb) cb.checked = !!on;
+}
+
 function loadPersistedSettings() {
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
@@ -1252,6 +1270,7 @@ function persistSettings() {
       shake: document.getElementById('toggle-shake').checked,
       scanlines: document.getElementById('toggle-scanlines').checked,
       bezel: (document.getElementById('toggle-bezel') || {}).checked,
+      bloom: CONFIG.bloom,
       // Only saved once the player has touched the toggle, so untouched
       // installs keep following the OS preference.
       reducedMotion: reducedMotionChosen ? CONFIG.reducedMotion : undefined,
@@ -1297,6 +1316,8 @@ function applyPersistedSettings(s) {
       document.getElementById('game-container').classList.toggle('crt-bezel-active', s.bezel);
     }
   }
+
+  if (typeof s.bloom === 'boolean') setBloomEnabled(s.bloom);
 
   if (typeof s.reducedMotion === 'boolean') {
     reducedMotionChosen = true;
