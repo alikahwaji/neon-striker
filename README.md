@@ -182,12 +182,20 @@ The game is deployed to **Firebase Hosting** at **https://neon-striker-70d7c.web
 * **Every PR** gets a temporary preview URL (expires after 7 days), commented on the PR by `.github/workflows/firebase-hosting-pull-request.yml`.
 * **Every merge to `main`** deploys the live site via `.github/workflows/firebase-hosting-merge.yml` (bundle check + tests first).
 * [`firebase.json`](firebase.json) publishes only what the page needs (`index.html`, `styles.css`, `game.bundle.js`, `database.js`), sets `no-cache` on the page and scripts so updates reach players immediately, and adds basic security headers.
-* Firestore rules and indexes are also in `firebase.json`; deploy them with `firebase deploy --only firestore` (CI does not deploy them yet).
+* **Firestore rules and indexes** (`firestore.rules`, `firestore.indexes.json`) deploy automatically when they change on `main`, via `.github/workflows/firestore-deploy.yml`; PRs that touch them get a `--dry-run` that compiles the rules first. It can also be run by hand from the Actions tab. Indexes created in the console are never deleted by CI; export them into the repo with `firebase firestore:indexes > firestore.indexes.json`.
 
 **One-time CI setup** (creates a deploy-only service account and stores its key as the `FIREBASE_SERVICE_ACCOUNT_NEON_STRIKER_70D7C` repo secret):
 
 ```bash
 firebase init hosting:github   # repo: alikahwaji/neon-striker; answer "No" to overwriting the existing workflow files
+```
+
+Then give that service account the two Firestore roles the rules/index deploy needs:
+
+```bash
+SA=github-action-1246942556@neon-striker-70d7c.iam.gserviceaccount.com
+gcloud projects add-iam-policy-binding neon-striker-70d7c --member="serviceAccount:$SA" --role=roles/firebaserules.admin
+gcloud projects add-iam-policy-binding neon-striker-70d7c --member="serviceAccount:$SA" --role=roles/datastore.indexAdmin
 ```
 
 Manual deploys: `firebase deploy --only hosting` (live) or `firebase hosting:channel:deploy <name> --expires 7d` (preview).
