@@ -38,44 +38,52 @@ function enableTouchControls() {
   // the "P to pause" toast) in styles.css.
   document.documentElement.classList.add('touch-device');
   buildTouchControls();
-  buildRotateHint();
   updateTouchLayout();
   window.addEventListener('resize', updateTouchLayout);
   window.addEventListener('orientationchange', updateTouchLayout);
 }
 
-// Start-menu banner nudging portrait players to rotate: the 4:3 game is
-// ~1.8x larger in landscape. Only visible under html.touch-portrait (CSS);
-// dismissing it is remembered on this device.
-const ROTATE_HINT_KEY = 'neon_striker_rotate_hint_dismissed';
-
-function buildRotateHint() {
-  let dismissed = false;
-  try { dismissed = localStorage.getItem(ROTATE_HINT_KEY) === '1'; } catch (e) { /* storage blocked */ }
-  const menu = document.getElementById('start-menu');
-  if (dismissed || !menu || document.getElementById('rotate-hint')) return;
-
-  const hint = document.createElement('div');
-  hint.id = 'rotate-hint';
-  hint.className = 'rotate-hint';
-  hint.innerHTML = '<span>⟳ Rotate your phone for a bigger view</span>' +
-    '<button type="button" class="rotate-hint-close" aria-label="Dismiss">✕</button>';
-  hint.querySelector('button').addEventListener('click', () => {
-    hint.remove();
-    try { localStorage.setItem(ROTATE_HINT_KEY, '1'); } catch (e) { /* storage blocked */ }
-  });
-  menu.insertBefore(hint, menu.firstChild);
-}
-
 // Portrait phones: a 4:3 game box only fills ~1/3 of a tall screen, the
 // thumbs cover it, and menus get squeezed into it. html.touch-portrait
-// (styles.css) makes the container full-screen: the 4:3 play view (canvas
-// + HUD) sits at the top, the touch controls get the free space below
-// it, and menus / hangar use the whole height. Landscape and desktop are
-// unchanged.
+// (styles.css) makes the container full-screen: a 3:4 play view (600x800
+// world) sits at the top between the HUD strips, the touch controls get
+// the free space below it, and menus / hangar use the whole height.
+// Landscape and desktop keep the 800x600 world.
 function updateTouchLayout() {
+  const root = document.documentElement;
   const portrait = touchEnabled && window.innerHeight > window.innerWidth;
-  document.documentElement.classList.toggle('touch-portrait', portrait);
+  root.classList.toggle('touch-portrait', portrait);
+  let world = PLAYFIELD_LANDSCAPE;
+  if (portrait) {
+    const css = getComputedStyle(root);
+    const px = name => parseFloat(css.getPropertyValue(name)) || 0;
+    const view = portraitPlayView(window.innerWidth, window.innerHeight,
+      px('--hud-strip') + px('--shield-strip') + px('--controls-min'));
+    world = view.world;
+    root.style.setProperty('--play-w', `${view.width}px`);
+    root.style.setProperty('--play-h', `${view.height}px`);
+  } else {
+    root.style.removeProperty('--play-w');
+    root.style.removeProperty('--play-h');
+  }
+  // Rotating mid-run pauses, since the thumbs leave the controls anyway.
+  if (setPlayfieldSize(world)) autoPauseIfPlaying();
+}
+
+// Portrait play view: the 600x800 world when it draws the game bigger than
+// the 800x600 strip across the full width, else the strip. chrome = HUD
+// strips + minimum control area, in CSS px. Short screens (small phones,
+// browser toolbars showing) keep the strip; tall ones get the 3:4 view.
+function portraitPlayView(screenW, screenH, chrome) {
+  const P = PLAYFIELD_PORTRAIT, L = PLAYFIELD_LANDSCAPE;
+  const stripScale = screenW / L.width;
+  const tallScale = Math.min(screenW / P.width, Math.max(0, screenH - chrome) / P.height);
+  // 5% margin so a near-tie doesn't flip the world on small resizes
+  // (e.g. the browser toolbar collapsing).
+  if (tallScale > stripScale * 1.05) {
+    return { world: P, width: Math.floor(P.width * tallScale), height: Math.floor(P.height * tallScale) };
+  }
+  return { world: L, width: screenW, height: Math.floor(screenW * L.height / L.width) };
 }
 
 function buildTouchControls() {

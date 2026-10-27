@@ -8,7 +8,10 @@ const { loadGame } = require('./harness');
 function fakeEl(extra = {}) {
   const classes = new Set(extra.classes || []);
   return {
-    style: {},
+    style: {
+      setProperty(k, v) { this[k] = v; },
+      removeProperty(k) { delete this[k]; }
+    },
     classList: {
       add: c => classes.add(c), remove: c => classes.delete(c), has: c => classes.has(c),
       toggle: (c, on) => { const v = on === undefined ? !classes.has(c) : on; if (v) classes.add(c); else classes.delete(c); return v; }

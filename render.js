@@ -64,6 +64,44 @@ function installShadowBlurScaling(context) {
   });
 }
 
+/* ----------------------------------------------------
+   PLAYFIELD SIZE (landscape 800x600 / portrait 600x800)
+   ----------------------------------------------------
+   Portrait phones get a 3:4 world instead of a 4:3 strip across the top of
+   the screen (touch.js updateTouchLayout calls this when the orientation
+   flips). Everything already on screen is moved proportionally so a mid-run
+   rotation keeps the formation, the bullets and the ship where they were
+   relative to the field. Returns true when the size actually changed. */
+const PLAYFIELD_ENTITY_LISTS = () => [
+  enemies, asteroids, playerLasers, enemyLasers, homingMissiles, powerUps,
+  scrapItems, particles, debrisList, impactRings, empShockwaves,
+  floatingTexts, wingmanDrones, wallTurrets, stars
+];
+
+function setPlayfieldSize(size) {
+  if (CONFIG.width === size.width && CONFIG.height === size.height) return false;
+  const sx = size.width / CONFIG.width;
+  const sy = size.height / CONFIG.height;
+  const remap = o => {
+    if (!o || typeof o.x !== 'number' || typeof o.y !== 'number') return;
+    // Scale the centre, not the top-left corner, so wide sprites stay
+    // inside the field.
+    const hw = (o.width || 0) / 2, hh = (o.height || 0) / 2;
+    o.x = (o.x + hw) * sx - hw;
+    o.y = (o.y + hh) * sy - hh;
+  };
+  PLAYFIELD_ENTITY_LISTS().forEach(list => list.forEach(remap));
+  if (player) {
+    remap(player);
+    player.x = Math.max(0, Math.min(size.width - player.width, player.x));
+  }
+  matrixStreams = []; // rebuilt for the new width by the matrix renderer
+  CONFIG.width = size.width;
+  CONFIG.height = size.height;
+  resizeCanvasToDisplay();
+  return true;
+}
+
 function initHiDpiCanvas() {
   if (typeof CanvasRenderingContext2D !== 'undefined') installShadowBlurScaling(ctx);
   resizeCanvasToDisplay();
@@ -189,12 +227,12 @@ function drawSynthwaveBackground() {
     ctx.restore();
   }
 
-  const horizonY = 220;
+  const horizonY = playfieldHorizonY();
 
   // Interstellar central black hole event horizon
   if (lvlData.blackHole) {
     ctx.save();
-    const cx = 400;
+    const cx = CONFIG.width / 2;
     const cy = horizonY;
     
     // Event horizon accretion disk radial swirl
@@ -320,16 +358,18 @@ function drawSynthwaveBackground() {
     ctx.shadowBlur = 12;
     ctx.shadowColor = '#39ff14';
 
+    const wallL = trenchLeft(), wallR = trenchRight();
+
     // Left wall
     ctx.beginPath();
-    ctx.moveTo(200, 0);
-    ctx.lineTo(200, CONFIG.height);
+    ctx.moveTo(wallL, 0);
+    ctx.lineTo(wallL, CONFIG.height);
     ctx.stroke();
 
     // Right wall
     ctx.beginPath();
-    ctx.moveTo(600, 0);
-    ctx.lineTo(600, CONFIG.height);
+    ctx.moveTo(wallR, 0);
+    ctx.lineTo(wallR, CONFIG.height);
     ctx.stroke();
 
     // Left wall horizontal cross indicators
@@ -338,11 +378,11 @@ function drawSynthwaveBackground() {
     for (let py = 0; py < CONFIG.height; py += 40) {
       ctx.beginPath();
       ctx.moveTo(0, py + (gridOffset % 40));
-      ctx.lineTo(200, py + (gridOffset % 40));
+      ctx.lineTo(wallL, py + (gridOffset % 40));
       ctx.stroke();
 
       ctx.beginPath();
-      ctx.moveTo(600, py + (gridOffset % 40));
+      ctx.moveTo(wallR, py + (gridOffset % 40));
       ctx.lineTo(CONFIG.width, py + (gridOffset % 40));
       ctx.stroke();
     }

@@ -7,6 +7,8 @@
 
 // Upgraded game configuration
 const CONFIG = {
+  // Logical playfield. 800x600 everywhere except portrait touch screens,
+  // which switch to PLAYFIELD_PORTRAIT via setPlayfieldSize (render.js).
   width: 800,
   height: 600,
   playerSpeedBase: 5.5,
@@ -418,6 +420,16 @@ const LEVEL_DATABASE = {
     bossType: "unicron"
   }
 };
+
+const PLAYFIELD_LANDSCAPE = { width: 800, height: 600 };
+const PLAYFIELD_PORTRAIT = { width: 600, height: 800 };
+
+// Playfield landmarks that scale with the world size (see setPlayfieldSize).
+// horizonY is 220 at the 800x600 size; the trench walls bound the middle
+// half of the screen (200..600 at 800 wide).
+function playfieldHorizonY() { return Math.round(CONFIG.height * 11 / 30); }
+function trenchLeft() { return CONFIG.width * 0.25; }
+function trenchRight() { return CONFIG.width * 0.75; }
 
 // Initialize Starfield once
 for (let i = 0; i < 70; i++) {

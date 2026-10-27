@@ -429,7 +429,7 @@ function handleCollisions() {
   // 8. Wall Conduit Collisions (Trench Run)
   const lvlData = activeLevelData || {};
   if (lvlData.trenchWalls) {
-    if (player.x < 205 || player.x + player.width > 595) {
+    if (player.x < trenchLeft() + 5 || player.x + player.width > trenchRight() - 5) {
       damagePlayer(2); // Trench wall thermal friction damage
       triggerScreenShake(0.08);
     }

@@ -720,6 +720,8 @@ const GameAudio = new SynthAudioEngine();
 
 // Upgraded game configuration
 const CONFIG = {
+  // Logical playfield. 800x600 everywhere except portrait touch screens,
+  // which switch to PLAYFIELD_PORTRAIT via setPlayfieldSize (render.js).
   width: 800,
   height: 600,
   playerSpeedBase: 5.5,
@@ -1132,6 +1134,16 @@ const LEVEL_DATABASE = {
   }
 };
 
+const PLAYFIELD_LANDSCAPE = { width: 800, height: 600 };
+const PLAYFIELD_PORTRAIT = { width: 600, height: 800 };
+
+// Playfield landmarks that scale with the world size (see setPlayfieldSize).
+// horizonY is 220 at the 800x600 size; the trench walls bound the middle
+// half of the screen (200..600 at 800 wide).
+function playfieldHorizonY() { return Math.round(CONFIG.height * 11 / 30); }
+function trenchLeft() { return CONFIG.width * 0.25; }
+function trenchRight() { return CONFIG.width * 0.75; }
+
 // Initialize Starfield once
 for (let i = 0; i < 70; i++) {
   stars.push({
@@ -1239,9 +1251,9 @@ class PlayerShip {
     
     const lvlData = activeLevelData || {};
     if (lvlData.trenchWalls) {
-      // Trench Run constrains player to middle corridor (200px to 600px)
-      minX = 210;
-      maxX = 590 - this.width;
+      // Trench Run constrains player to the middle corridor (trench walls)
+      minX = trenchLeft() + 10;
+      maxX = trenchRight() - 10 - this.width;
     }
 
     // Boundary check clamping
@@ -1262,13 +1274,13 @@ class PlayerShip {
       this.vy = 0;
     }
 
-    // Interstellar Black Hole gravity pull towards center (400px X coordinate)
+    // Interstellar Black Hole gravity pull towards the centre of the field
     if (lvlData.blackHole) {
       let pullForce = 0.16;
       if (selectedDifficulty === 'cadet') pullForce = 0.08;
       else if (selectedDifficulty === 'elite') pullForce = 0.22;
       
-      const pullDir = player.x + player.width / 2 < 400 ? 1 : -1;
+      const pullDir = player.x + player.width / 2 < CONFIG.width / 2 ? 1 : -1;
       this.vx += pullDir * pullForce * m;
     }
 
@@ -2138,7 +2150,7 @@ class Enemy {
         if (dist > 20) {
           const pullStrength = 0.08 * mult * m;
           player.vx += (dx / dist) * pullStrength;
-          if (player.y > 220) {
+          if (player.y > playfieldHorizonY()) {
             player.y += (dy / dist) * pullStrength * 1.5;
           }
         }
@@ -3389,6 +3401,44 @@ function installShadowBlurScaling(context) {
   });
 }
 
+/* ----------------------------------------------------
+   PLAYFIELD SIZE (landscape 800x600 / portrait 600x800)
+   ----------------------------------------------------
+   Portrait phones get a 3:4 world instead of a 4:3 strip across the top of
+   the screen (touch.js updateTouchLayout calls this when the orientation
+   flips). Everything already on screen is moved proportionally so a mid-run
+   rotation keeps the formation, the bullets and the ship where they were
+   relative to the field. Returns true when the size actually changed. */
+const PLAYFIELD_ENTITY_LISTS = () => [
+  enemies, asteroids, playerLasers, enemyLasers, homingMissiles, powerUps,
+  scrapItems, particles, debrisList, impactRings, empShockwaves,
+  floatingTexts, wingmanDrones, wallTurrets, stars
+];
+
+function setPlayfieldSize(size) {
+  if (CONFIG.width === size.width && CONFIG.height === size.height) return false;
+  const sx = size.width / CONFIG.width;
+  const sy = size.height / CONFIG.height;
+  const remap = o => {
+    if (!o || typeof o.x !== 'number' || typeof o.y !== 'number') return;
+    // Scale the centre, not the top-left corner, so wide sprites stay
+    // inside the field.
+    const hw = (o.width || 0) / 2, hh = (o.height || 0) / 2;
+    o.x = (o.x + hw) * sx - hw;
+    o.y = (o.y + hh) * sy - hh;
+  };
+  PLAYFIELD_ENTITY_LISTS().forEach(list => list.forEach(remap));
+  if (player) {
+    remap(player);
+    player.x = Math.max(0, Math.min(size.width - player.width, player.x));
+  }
+  matrixStreams = []; // rebuilt for the new width by the matrix renderer
+  CONFIG.width = size.width;
+  CONFIG.height = size.height;
+  resizeCanvasToDisplay();
+  return true;
+}
+
 function initHiDpiCanvas() {
   if (typeof CanvasRenderingContext2D !== 'undefined') installShadowBlurScaling(ctx);
   resizeCanvasToDisplay();
@@ -3514,12 +3564,12 @@ function drawSynthwaveBackground() {
     ctx.restore();
   }
 
-  const horizonY = 220;
+  const horizonY = playfieldHorizonY();
 
   // Interstellar central black hole event horizon
   if (lvlData.blackHole) {
     ctx.save();
-    const cx = 400;
+    const cx = CONFIG.width / 2;
     const cy = horizonY;
     
     // Event horizon accretion disk radial swirl
@@ -3645,16 +3695,18 @@ function drawSynthwaveBackground() {
     ctx.shadowBlur = 12;
     ctx.shadowColor = '#39ff14';
 
+    const wallL = trenchLeft(), wallR = trenchRight();
+
     // Left wall
     ctx.beginPath();
-    ctx.moveTo(200, 0);
-    ctx.lineTo(200, CONFIG.height);
+    ctx.moveTo(wallL, 0);
+    ctx.lineTo(wallL, CONFIG.height);
     ctx.stroke();
 
     // Right wall
     ctx.beginPath();
-    ctx.moveTo(600, 0);
-    ctx.lineTo(600, CONFIG.height);
+    ctx.moveTo(wallR, 0);
+    ctx.lineTo(wallR, CONFIG.height);
     ctx.stroke();
 
     // Left wall horizontal cross indicators
@@ -3663,11 +3715,11 @@ function drawSynthwaveBackground() {
     for (let py = 0; py < CONFIG.height; py += 40) {
       ctx.beginPath();
       ctx.moveTo(0, py + (gridOffset % 40));
-      ctx.lineTo(200, py + (gridOffset % 40));
+      ctx.lineTo(wallL, py + (gridOffset % 40));
       ctx.stroke();
 
       ctx.beginPath();
-      ctx.moveTo(600, py + (gridOffset % 40));
+      ctx.moveTo(wallR, py + (gridOffset % 40));
       ctx.lineTo(CONFIG.width, py + (gridOffset % 40));
       ctx.stroke();
     }
@@ -4354,7 +4406,7 @@ function handleCollisions() {
   // 8. Wall Conduit Collisions (Trench Run)
   const lvlData = activeLevelData || {};
   if (lvlData.trenchWalls) {
-    if (player.x < 205 || player.x + player.width > 595) {
+    if (player.x < trenchLeft() + 5 || player.x + player.width > trenchRight() - 5) {
       damagePlayer(2); // Trench wall thermal friction damage
       triggerScreenShake(0.08);
     }
@@ -5267,44 +5319,52 @@ function enableTouchControls() {
   // the "P to pause" toast) in styles.css.
   document.documentElement.classList.add('touch-device');
   buildTouchControls();
-  buildRotateHint();
   updateTouchLayout();
   window.addEventListener('resize', updateTouchLayout);
   window.addEventListener('orientationchange', updateTouchLayout);
 }
 
-// Start-menu banner nudging portrait players to rotate: the 4:3 game is
-// ~1.8x larger in landscape. Only visible under html.touch-portrait (CSS);
-// dismissing it is remembered on this device.
-const ROTATE_HINT_KEY = 'neon_striker_rotate_hint_dismissed';
-
-function buildRotateHint() {
-  let dismissed = false;
-  try { dismissed = localStorage.getItem(ROTATE_HINT_KEY) === '1'; } catch (e) { /* storage blocked */ }
-  const menu = document.getElementById('start-menu');
-  if (dismissed || !menu || document.getElementById('rotate-hint')) return;
-
-  const hint = document.createElement('div');
-  hint.id = 'rotate-hint';
-  hint.className = 'rotate-hint';
-  hint.innerHTML = '<span>⟳ Rotate your phone for a bigger view</span>' +
-    '<button type="button" class="rotate-hint-close" aria-label="Dismiss">✕</button>';
-  hint.querySelector('button').addEventListener('click', () => {
-    hint.remove();
-    try { localStorage.setItem(ROTATE_HINT_KEY, '1'); } catch (e) { /* storage blocked */ }
-  });
-  menu.insertBefore(hint, menu.firstChild);
-}
-
 // Portrait phones: a 4:3 game box only fills ~1/3 of a tall screen, the
 // thumbs cover it, and menus get squeezed into it. html.touch-portrait
-// (styles.css) makes the container full-screen: the 4:3 play view (canvas
-// + HUD) sits at the top, the touch controls get the free space below
-// it, and menus / hangar use the whole height. Landscape and desktop are
-// unchanged.
+// (styles.css) makes the container full-screen: a 3:4 play view (600x800
+// world) sits at the top between the HUD strips, the touch controls get
+// the free space below it, and menus / hangar use the whole height.
+// Landscape and desktop keep the 800x600 world.
 function updateTouchLayout() {
+  const root = document.documentElement;
   const portrait = touchEnabled && window.innerHeight > window.innerWidth;
-  document.documentElement.classList.toggle('touch-portrait', portrait);
+  root.classList.toggle('touch-portrait', portrait);
+  let world = PLAYFIELD_LANDSCAPE;
+  if (portrait) {
+    const css = getComputedStyle(root);
+    const px = name => parseFloat(css.getPropertyValue(name)) || 0;
+    const view = portraitPlayView(window.innerWidth, window.innerHeight,
+      px('--hud-strip') + px('--shield-strip') + px('--controls-min'));
+    world = view.world;
+    root.style.setProperty('--play-w', `${view.width}px`);
+    root.style.setProperty('--play-h', `${view.height}px`);
+  } else {
+    root.style.removeProperty('--play-w');
+    root.style.removeProperty('--play-h');
+  }
+  // Rotating mid-run pauses, since the thumbs leave the controls anyway.
+  if (setPlayfieldSize(world)) autoPauseIfPlaying();
+}
+
+// Portrait play view: the 600x800 world when it draws the game bigger than
+// the 800x600 strip across the full width, else the strip. chrome = HUD
+// strips + minimum control area, in CSS px. Short screens (small phones,
+// browser toolbars showing) keep the strip; tall ones get the 3:4 view.
+function portraitPlayView(screenW, screenH, chrome) {
+  const P = PLAYFIELD_PORTRAIT, L = PLAYFIELD_LANDSCAPE;
+  const stripScale = screenW / L.width;
+  const tallScale = Math.min(screenW / P.width, Math.max(0, screenH - chrome) / P.height);
+  // 5% margin so a near-tie doesn't flip the world on small resizes
+  // (e.g. the browser toolbar collapsing).
+  if (tallScale > stripScale * 1.05) {
+    return { world: P, width: Math.floor(P.width * tallScale), height: Math.floor(P.height * tallScale) };
+  }
+  return { world: L, width: screenW, height: Math.floor(screenW * L.height / L.width) };
 }
 
 function buildTouchControls() {
@@ -5564,7 +5624,7 @@ function handleWaveSpawning(dt) {
   if (lvlData.trenchWalls && gameActive && !gamePaused) {
     if (Math.random() < frameChance(0.008, m)) {
       const side = Math.random() > 0.5 ? 'left' : 'right';
-      const rx = side === 'left' ? 176 : 600;
+      const rx = side === 'left' ? trenchLeft() - 24 : trenchRight();
       wallTurrets.push(new WallTurret(rx, -40, side));
     }
   }

@@ -66,7 +66,7 @@ function handleWaveSpawning(dt) {
   if (lvlData.trenchWalls && gameActive && !gamePaused) {
     if (Math.random() < frameChance(0.008, m)) {
       const side = Math.random() > 0.5 ? 'left' : 'right';
-      const rx = side === 'left' ? 176 : 600;
+      const rx = side === 'left' ? trenchLeft() - 24 : trenchRight();
       wallTurrets.push(new WallTurret(rx, -40, side));
     }
   }
