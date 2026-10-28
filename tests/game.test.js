@@ -301,3 +301,24 @@ test('duplicates already saved in a browser are collapsed on load', () => {
   ]));
   assert.deepEqual(Array.from(T.getLeaderboard(), r => `${r.name}:${r.score}`), ['DAN:900', 'SYN:100']);
 });
+
+test('Esc pauses and resumes like P, but not while typing or on key-repeat', () => {
+  const game = boot(loadGame());
+  const T = game.T;
+  const keydown = game.listeners.keydown || [];
+  const press = (code, tag = 'CANVAS', repeat = false) =>
+    keydown.forEach(fn => fn({ code, target: { tagName: tag }, repeat, preventDefault() {} }));
+  T.evalInGame('gameActive = true; gamePaused = false; inShop = false; inIntro = false;');
+  const paused = () => T.evalInGame('gamePaused');
+
+  press('Escape');
+  assert.equal(paused(), true, 'Esc should pause');
+  press('Escape', 'CANVAS', true);
+  assert.equal(paused(), true, 'held Esc should not toggle');
+  press('Escape');
+  assert.equal(paused(), false, 'Esc should resume');
+  press('Escape', 'INPUT');
+  assert.equal(paused(), false, 'Esc in a text field should not pause');
+  press('KeyP');
+  assert.equal(paused(), true, 'P still pauses');
+});

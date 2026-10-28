@@ -395,7 +395,9 @@ window.addEventListener('load', () => {
     }
     keys[e.code] = true;
 
-    if (!typingInForm && e.code === 'KeyP') {
+    // P or Esc pauses / resumes. Ignore key-repeat so holding the key
+    // doesn't flicker the pause screen on and off.
+    if (!typingInForm && (e.code === 'KeyP' || e.code === 'Escape') && !e.repeat) {
       togglePause();
     }
     if (!typingInForm && e.code === 'KeyM' && !e.repeat) {
